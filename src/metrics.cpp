@@ -1,6 +1,5 @@
 #include "tt_metrics_exporter/metrics.hpp"
 
-#include <iomanip>
 #include <ostream>
 #include <sstream>
 
@@ -52,7 +51,8 @@ void write_help_type(std::ostream& output, std::string_view name,
 void write_device_labels(std::ostream& output, const DeviceTelemetry& device) {
   output << "device=\"" << escape_label(device.id) << "\",architecture=\""
          << escape_label(label_value(device.architecture)) << "\",board_type=\""
-         << escape_label(label_value(device.board_type)) << "\"";
+         << escape_label(label_value(device.board_type)) << "\",pci_bdf=\""
+         << escape_label(label_value(device.pci.bdf)) << "\"";
 }
 
 void write_info_labels(std::ostream& output, const DeviceTelemetry& device) {
@@ -72,6 +72,7 @@ void write_info_labels(std::ostream& output, const DeviceTelemetry& device) {
   output << ",pci_vendor_id=\"" << escape_label(label_value(device.pci.vendor_id))
          << "\",pci_device_id=\""
          << escape_label(label_value(device.pci.device_id))
+         << "\",pci_driver=\"" << escape_label(label_value(device.pci.driver))
          << "\",pci_class_id=\"" << escape_label(label_value(device.pci.class_id))
          << "\",pci_revision=\""
          << escape_label(label_value(device.pci.revision))
@@ -80,6 +81,18 @@ void write_info_labels(std::ostream& output, const DeviceTelemetry& device) {
          << "\",pci_subsystem_device_id=\""
          << escape_label(label_value(device.pci.subsystem_device_id))
          << "\",numa_node=\"" << escape_label(label_value(device.pci.numa_node))
+         << "\",iommu_group=\""
+         << escape_label(label_value(device.pci.iommu_group))
+         << "\",pci_current_link_speed=\""
+         << escape_label(label_value(device.pci.current_link_speed))
+         << "\",pci_current_link_width=\""
+         << escape_label(label_value(device.pci.current_link_width))
+         << "\",pci_max_link_speed=\""
+         << escape_label(label_value(device.pci.max_link_speed))
+         << "\",pci_max_link_width=\""
+         << escape_label(label_value(device.pci.max_link_width))
+         << "\",pci_reset_method=\""
+         << escape_label(label_value(device.pci.reset_method))
          << "\"";
 }
 
@@ -111,6 +124,79 @@ void write_optional_clock(std::ostream& output, const DeviceTelemetry& device,
   output << "tt_firmware_clock_frequency_mhz{";
   write_device_labels(output, device);
   output << ",clock=\"" << clock << "\"} " << *value << '\n';
+}
+
+void write_optional_pci_link_info(
+    std::ostream& output, const DeviceTelemetry& device, std::string_view state,
+    const std::optional<std::string>& speed) {
+  if (!speed.has_value()) {
+    return;
+  }
+  output << "tt_pci_link_info{";
+  write_device_labels(output, device);
+  output << ",state=\"" << state << "\",speed=\""
+         << escape_label(*speed) << "\"} 1\n";
+}
+
+void write_optional_pci_link_width(
+    std::ostream& output, const DeviceTelemetry& device, std::string_view state,
+    const std::optional<std::int64_t>& width) {
+  if (!width.has_value()) {
+    return;
+  }
+  output << "tt_pci_link_width_lanes{";
+  write_device_labels(output, device);
+  output << ",state=\"" << state << "\"} " << *width << '\n';
+}
+
+void write_optional_uint_metric(std::ostream& output, std::string_view metric,
+                                const DeviceTelemetry& device,
+                                const std::optional<std::uint64_t>& value) {
+  if (!value.has_value()) {
+    return;
+  }
+  output << metric << "{";
+  write_device_labels(output, device);
+  output << "} " << *value << '\n';
+}
+
+void write_optional_int_metric(std::ostream& output, std::string_view metric,
+                               const DeviceTelemetry& device,
+                               const std::optional<std::int64_t>& value) {
+  if (!value.has_value()) {
+    return;
+  }
+  output << metric << "{";
+  write_device_labels(output, device);
+  output << "} " << *value << '\n';
+}
+
+bool has_allocation(const AllocationTelemetry& allocation) {
+  return allocation.claim_namespace.has_value() ||
+         allocation.claim_name.has_value() || allocation.claim_uid.has_value() ||
+         allocation.pod_namespace.has_value() || allocation.pod_name.has_value() ||
+         allocation.container_name.has_value();
+}
+
+bool has_janitor(const JanitorTelemetry& janitor) {
+  return janitor.state.has_value() || janitor.quarantine_reason.has_value() ||
+         janitor.last_scrub_status.has_value() ||
+         janitor.last_reset_status.has_value() ||
+         janitor.scrub_count.has_value() || janitor.reset_count.has_value() ||
+         janitor.last_scrub_timestamp_seconds.has_value() ||
+         janitor.last_reset_timestamp_seconds.has_value();
+}
+
+void write_metalium_workload_labels(
+    std::ostream& output, const DeviceTelemetry& device,
+    const MetaliumWorkloadTelemetry& workload) {
+  write_device_labels(output, device);
+  output << ",workload_id=\"" << escape_label(workload.workload_id)
+         << "\",pod_namespace=\""
+         << escape_label(label_value(workload.pod_namespace))
+         << "\",pod_name=\"" << escape_label(label_value(workload.pod_name))
+         << "\",container_name=\""
+         << escape_label(label_value(workload.container_name)) << "\"";
 }
 
 }  // namespace
@@ -202,77 +288,6 @@ std::string render_prometheus(const std::vector<DeviceTelemetry>& devices) {
   }
   output << '\n';
 
-  write_help_type(output, "tt_device_spec_asic_count",
-                  "Static ASIC count inferred from firmware-reported card type.",
-                  "gauge");
-  for (const auto& device : devices) {
-    if (!device.spec.has_value()) {
-      continue;
-    }
-    output << "tt_device_spec_asic_count{";
-    write_device_labels(output, device);
-    output << ",card_type=\"" << escape_label(device.spec->card_type) << "\"} "
-           << device.spec->asic_count << '\n';
-  }
-  output << '\n';
-
-  write_help_type(output, "tt_device_spec_tensix_cores",
-                  "Static Tensix core count inferred from firmware-reported card type.",
-                  "gauge");
-  for (const auto& device : devices) {
-    if (!device.spec.has_value()) {
-      continue;
-    }
-    output << "tt_device_spec_tensix_cores{";
-    write_device_labels(output, device);
-    output << ",card_type=\"" << escape_label(device.spec->card_type) << "\"} "
-           << device.spec->tensix_cores << '\n';
-  }
-  output << '\n';
-
-  write_help_type(output, "tt_device_spec_sram_bytes",
-                  "Static SRAM capacity inferred from firmware-reported card type.",
-                  "gauge");
-  for (const auto& device : devices) {
-    if (!device.spec.has_value()) {
-      continue;
-    }
-    output << "tt_device_spec_sram_bytes{";
-    write_device_labels(output, device);
-    output << ",card_type=\"" << escape_label(device.spec->card_type) << "\"} "
-           << device.spec->sram_bytes << '\n';
-  }
-  output << '\n';
-
-  write_help_type(output, "tt_device_spec_memory_bytes",
-                  "Static local memory capacity inferred from firmware-reported card type.",
-                  "gauge");
-  for (const auto& device : devices) {
-    if (!device.spec.has_value()) {
-      continue;
-    }
-    output << "tt_device_spec_memory_bytes{";
-    write_device_labels(output, device);
-    output << ",card_type=\"" << escape_label(device.spec->card_type) << "\"} "
-           << device.spec->memory_bytes << '\n';
-  }
-  output << '\n';
-
-  write_help_type(
-      output, "tt_device_spec_memory_bandwidth_bytes_per_second",
-      "Static memory bandwidth inferred from firmware-reported card type.",
-      "gauge");
-  for (const auto& device : devices) {
-    if (!device.spec.has_value()) {
-      continue;
-    }
-    output << "tt_device_spec_memory_bandwidth_bytes_per_second{";
-    write_device_labels(output, device);
-    output << ",card_type=\"" << escape_label(device.spec->card_type) << "\"} "
-           << device.spec->memory_bandwidth_bytes_per_second << '\n';
-  }
-  output << '\n';
-
   write_help_type(output, "tt_pci_resource_size_bytes",
                   "Size of non-empty PCI resource ranges exposed by the device.",
                   "gauge");
@@ -286,6 +301,28 @@ std::string render_prometheus(const std::vector<DeviceTelemetry>& devices) {
              << escape_label(hex_label(resource.flags)) << "\"} "
              << resource.size_bytes << '\n';
     }
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_pci_link_info",
+                  "PCIe link speed labels read from backing PCI sysfs.",
+                  "gauge");
+  for (const auto& device : devices) {
+    write_optional_pci_link_info(output, device, "current",
+                                 device.pci.current_link_speed);
+    write_optional_pci_link_info(output, device, "max",
+                                 device.pci.max_link_speed);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_pci_link_width_lanes",
+                  "PCIe link width in lanes read from backing PCI sysfs.",
+                  "gauge");
+  for (const auto& device : devices) {
+    write_optional_pci_link_width(output, device, "current",
+                                  device.pci.current_link_width);
+    write_optional_pci_link_width(output, device, "max",
+                                  device.pci.max_link_width);
   }
   output << '\n';
 
@@ -381,24 +418,83 @@ std::string render_prometheus(const std::vector<DeviceTelemetry>& devices) {
   write_help_type(output, "tt_memory_used_bytes",
                   "Tenstorrent device memory currently used in bytes.", "gauge");
   for (const auto& device : devices) {
-    if (!device.memory_used_bytes.has_value()) {
-      continue;
-    }
-    output << "tt_memory_used_bytes{";
-    write_device_labels(output, device);
-    output << "} " << *device.memory_used_bytes << '\n';
+    write_optional_uint_metric(output, "tt_memory_used_bytes", device,
+                               device.memory.used_bytes);
   }
   output << '\n';
 
   write_help_type(output, "tt_memory_total_bytes",
                   "Tenstorrent device total memory in bytes.", "gauge");
   for (const auto& device : devices) {
-    if (!device.memory_total_bytes.has_value()) {
+    write_optional_uint_metric(output, "tt_memory_total_bytes", device,
+                               device.memory.total_bytes);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_memory_free_bytes",
+                  "Tenstorrent device memory free in bytes.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_uint_metric(output, "tt_memory_free_bytes", device,
+                               device.memory.free_bytes);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_memory_available_bytes",
+                  "Tenstorrent device memory available in bytes.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_uint_metric(output, "tt_memory_available_bytes", device,
+                               device.memory.available_bytes);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_memory_bandwidth_bytes_per_second",
+                  "Observed or reported local memory bandwidth in bytes per second.",
+                  "gauge");
+  for (const auto& device : devices) {
+    write_optional_uint_metric(output, "tt_memory_bandwidth_bytes_per_second",
+                               device, device.memory.bandwidth_bytes_per_second);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_memory_info",
+                  "Memory technology and controller layout reported by safe sources.",
+                  "gauge");
+  for (const auto& device : devices) {
+    if (!device.memory.type.has_value() &&
+        !device.memory.controller_layout.has_value()) {
       continue;
     }
-    output << "tt_memory_total_bytes{";
+    output << "tt_memory_info{";
     write_device_labels(output, device);
-    output << "} " << *device.memory_total_bytes << '\n';
+    output << ",type=\"" << escape_label(label_value(device.memory.type))
+           << "\",controller_layout=\""
+           << escape_label(label_value(device.memory.controller_layout))
+           << "\"} 1\n";
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_memory_controller_count",
+                  "Memory controller count reported by a safe source.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_memory_controller_count", device,
+                              device.memory.controller_count);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_memory_controllers_per_asic",
+                  "Memory controllers per ASIC reported by a safe source.",
+                  "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_memory_controllers_per_asic", device,
+                              device.memory.controllers_per_asic);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_memory_channel_count",
+                  "Memory channel count reported by a safe source.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_memory_channel_count", device,
+                              device.memory.channel_count);
   }
   output << '\n';
 
@@ -406,24 +502,322 @@ std::string render_prometheus(const std::vector<DeviceTelemetry>& devices) {
                   "Tenstorrent Tensix cores currently active or reserved.",
                   "gauge");
   for (const auto& device : devices) {
-    if (!device.tensix_cores_used.has_value()) {
-      continue;
-    }
-    output << "tt_tensix_cores_used{";
-    write_device_labels(output, device);
-    output << "} " << *device.tensix_cores_used << '\n';
+    write_optional_int_metric(output, "tt_tensix_cores_used", device,
+                              device.tensix.used);
   }
   output << '\n';
 
   write_help_type(output, "tt_tensix_cores_available",
                   "Tenstorrent Tensix cores available on the device.", "gauge");
   for (const auto& device : devices) {
-    if (!device.tensix_cores_available.has_value()) {
+    write_optional_int_metric(output, "tt_tensix_cores_available", device,
+                              device.tensix.available);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_tensix_cores_total",
+                  "Total Tensix cores reported by a safe source.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_tensix_cores_total", device,
+                              device.tensix.total);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_tensix_mesh_rows",
+                  "Tensix mesh row count reported by a safe source.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_tensix_mesh_rows", device,
+                              device.tensix.mesh_rows);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_tensix_mesh_cols",
+                  "Tensix mesh column count reported by a safe source.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_tensix_mesh_cols", device,
+                              device.tensix.mesh_cols);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_tensix_info",
+                  "Tensix topology labels reported by a safe source.", "gauge");
+  for (const auto& device : devices) {
+    if (!device.tensix.topology.has_value() &&
+        !device.tensix.active_regions.has_value()) {
       continue;
     }
-    output << "tt_tensix_cores_available{";
+    output << "tt_tensix_info{";
     write_device_labels(output, device);
-    output << "} " << *device.tensix_cores_available << '\n';
+    output << ",topology=\"" << escape_label(label_value(device.tensix.topology))
+           << "\",active_regions=\""
+           << escape_label(label_value(device.tensix.active_regions))
+           << "\"} 1\n";
+  }
+  output << '\n';
+
+  write_help_type(
+      output, "tt_metalium_workload_active",
+      "Whether a fresh TT-Metalium workload profiler sample reported activity.",
+      "gauge");
+  for (const auto& device : devices) {
+    for (const auto& workload : device.metalium_workloads) {
+      output << "tt_metalium_workload_active{";
+      write_metalium_workload_labels(output, device, workload);
+      output << "} "
+             << (!workload.stale && workload.active.value_or(0) != 0 ? 1 : 0)
+             << '\n';
+    }
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_metalium_workload_profile_stale",
+                  "Whether the TT-Metalium workload profiler sample exceeded its freshness window.",
+                  "gauge");
+  for (const auto& device : devices) {
+    for (const auto& workload : device.metalium_workloads) {
+      output << "tt_metalium_workload_profile_stale{";
+      write_metalium_workload_labels(output, device, workload);
+      output << "} " << (workload.stale ? 1 : 0) << '\n';
+    }
+  }
+  output << '\n';
+
+  write_help_type(
+      output, "tt_metalium_workload_tensix_cores_used",
+      "Maximum Tensix core footprint among programs in the latest fresh TT-Metalium sample.",
+      "gauge");
+  for (const auto& device : devices) {
+    for (const auto& workload : device.metalium_workloads) {
+      if (workload.stale || !workload.tensix_cores_used.has_value()) {
+        continue;
+      }
+      output << "tt_metalium_workload_tensix_cores_used{";
+      write_metalium_workload_labels(output, device, workload);
+      output << "} " << *workload.tensix_cores_used << '\n';
+    }
+  }
+  output << '\n';
+
+  write_help_type(
+      output, "tt_metalium_workload_tensix_cores_total",
+      "Tensix cores available to programs in the latest fresh TT-Metalium sample.",
+      "gauge");
+  for (const auto& device : devices) {
+    for (const auto& workload : device.metalium_workloads) {
+      if (workload.stale || !workload.tensix_cores_total.has_value()) {
+        continue;
+      }
+      output << "tt_metalium_workload_tensix_cores_total{";
+      write_metalium_workload_labels(output, device, workload);
+      output << "} " << *workload.tensix_cores_total << '\n';
+    }
+  }
+  output << '\n';
+
+  write_help_type(
+      output, "tt_metalium_workload_core_occupancy_ratio",
+      "Latest profiled program core footprint divided by available Tensix cores; this is spatial occupancy, not time-weighted busy percentage.",
+      "gauge");
+  for (const auto& device : devices) {
+    for (const auto& workload : device.metalium_workloads) {
+      if (workload.stale || !workload.tensix_cores_used.has_value() ||
+          !workload.tensix_cores_total.has_value() ||
+          *workload.tensix_cores_total <= 0) {
+        continue;
+      }
+      output << "tt_metalium_workload_core_occupancy_ratio{";
+      write_metalium_workload_labels(output, device, workload);
+      output << "} "
+             << static_cast<double>(*workload.tensix_cores_used) /
+                    static_cast<double>(*workload.tensix_cores_total)
+             << '\n';
+    }
+  }
+  output << '\n';
+
+  write_help_type(
+      output, "tt_metalium_workload_programs_observed",
+      "Programs represented by the latest fresh TT-Metalium profiler read.",
+      "gauge");
+  for (const auto& device : devices) {
+    for (const auto& workload : device.metalium_workloads) {
+      if (workload.stale || !workload.programs_observed.has_value()) {
+        continue;
+      }
+      output << "tt_metalium_workload_programs_observed{";
+      write_metalium_workload_labels(output, device, workload);
+      output << "} " << *workload.programs_observed << '\n';
+    }
+  }
+  output << '\n';
+
+  write_help_type(
+      output, "tt_metalium_workload_sample_timestamp_seconds",
+      "Unix timestamp of the latest TT-Metalium workload profiler sample.",
+      "gauge");
+  for (const auto& device : devices) {
+    for (const auto& workload : device.metalium_workloads) {
+      if (!workload.sample_timestamp_seconds.has_value()) {
+        continue;
+      }
+      output << "tt_metalium_workload_sample_timestamp_seconds{";
+      write_metalium_workload_labels(output, device, workload);
+      output << "} " << *workload.sample_timestamp_seconds << '\n';
+    }
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_health_fault_info",
+                  "Fault details reported by safe driver or janitor sources.",
+                  "gauge");
+  for (const auto& device : devices) {
+    if (!device.health_detail.fault_code.has_value() &&
+        !device.health_detail.fault_reason.has_value()) {
+      continue;
+    }
+    output << "tt_health_fault_info{";
+    write_device_labels(output, device);
+    output << ",fault_code=\""
+           << escape_label(label_value(device.health_detail.fault_code))
+           << "\",fault_reason=\""
+           << escape_label(label_value(device.health_detail.fault_reason))
+           << "\"} 1\n";
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_health_reset_required",
+                  "Whether a safe source reports that the device requires reset.",
+                  "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_health_reset_required", device,
+                              device.health_detail.reset_required);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_health_oom_faults_total",
+                  "OOM fault count reported by a safe source.", "counter");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_health_oom_faults_total", device,
+                              device.health_detail.oom_fault_count);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_health_hang_faults_total",
+                  "Device hang fault count reported by a safe source.", "counter");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_health_hang_faults_total", device,
+                              device.health_detail.hang_fault_count);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_interconnect_link_info",
+                  "Scale-out or fabric link state reported by safe sources.",
+                  "gauge");
+  for (const auto& device : devices) {
+    for (const auto& link : device.interconnect_links) {
+      output << "tt_interconnect_link_info{";
+      write_device_labels(output, device);
+      output << ",link=\"" << escape_label(link.name) << "\",type=\""
+             << escape_label(label_value(link.type)) << "\",state=\""
+             << escape_label(label_value(link.state)) << "\",peer=\""
+             << escape_label(label_value(link.peer)) << "\",ring_id=\""
+             << escape_label(label_value(link.ring_id)) << "\"} 1\n";
+    }
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_interconnect_link_speed_gbps",
+                  "Interconnect link speed in Gbps reported by safe sources.",
+                  "gauge");
+  for (const auto& device : devices) {
+    for (const auto& link : device.interconnect_links) {
+      if (!link.speed_gbps.has_value()) {
+        continue;
+      }
+      output << "tt_interconnect_link_speed_gbps{";
+      write_device_labels(output, device);
+      output << ",link=\"" << escape_label(link.name) << "\"} "
+             << *link.speed_gbps << '\n';
+    }
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_dra_allocation_info",
+                  "Kubernetes DRA allocation labels from a node-local state source.",
+                  "gauge");
+  for (const auto& device : devices) {
+    if (!has_allocation(device.allocation)) {
+      continue;
+    }
+    output << "tt_dra_allocation_info{";
+    write_device_labels(output, device);
+    output << ",claim_namespace=\""
+           << escape_label(label_value(device.allocation.claim_namespace))
+           << "\",claim_name=\""
+           << escape_label(label_value(device.allocation.claim_name))
+           << "\",claim_uid=\""
+           << escape_label(label_value(device.allocation.claim_uid))
+           << "\",pod_namespace=\""
+           << escape_label(label_value(device.allocation.pod_namespace))
+           << "\",pod_name=\""
+           << escape_label(label_value(device.allocation.pod_name))
+           << "\",container_name=\""
+           << escape_label(label_value(device.allocation.container_name))
+           << "\"} 1\n";
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_janitor_state_info",
+                  "Hardware janitor state labels from a node-local state source.",
+                  "gauge");
+  for (const auto& device : devices) {
+    if (!has_janitor(device.janitor)) {
+      continue;
+    }
+    output << "tt_janitor_state_info{";
+    write_device_labels(output, device);
+    output << ",state=\"" << escape_label(label_value(device.janitor.state))
+           << "\",quarantine_reason=\""
+           << escape_label(label_value(device.janitor.quarantine_reason))
+           << "\",last_scrub_status=\""
+           << escape_label(label_value(device.janitor.last_scrub_status))
+           << "\",last_reset_status=\""
+           << escape_label(label_value(device.janitor.last_reset_status))
+           << "\"} 1\n";
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_janitor_scrub_total",
+                  "Total scrub attempts reported by the hardware janitor.",
+                  "counter");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_janitor_scrub_total", device,
+                              device.janitor.scrub_count);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_janitor_reset_total",
+                  "Total reset attempts reported by the hardware janitor.",
+                  "counter");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_janitor_reset_total", device,
+                              device.janitor.reset_count);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_janitor_last_scrub_timestamp_seconds",
+                  "Unix timestamp for the last scrub attempt.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_janitor_last_scrub_timestamp_seconds",
+                              device, device.janitor.last_scrub_timestamp_seconds);
+  }
+  output << '\n';
+
+  write_help_type(output, "tt_janitor_last_reset_timestamp_seconds",
+                  "Unix timestamp for the last reset attempt.", "gauge");
+  for (const auto& device : devices) {
+    write_optional_int_metric(output, "tt_janitor_last_reset_timestamp_seconds",
+                              device, device.janitor.last_reset_timestamp_seconds);
   }
   output << '\n';
 

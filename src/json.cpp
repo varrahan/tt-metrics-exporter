@@ -154,6 +154,8 @@ void write_pci_resources(std::ostream& output,
 void write_pci(std::ostream& output, const DeviceTelemetry& device) {
   bool first = true;
   output << '{';
+  write_optional_string_field(output, "bdf", device.pci.bdf, first);
+  write_optional_string_field(output, "driver", device.pci.driver, first);
   write_optional_string_field(output, "vendorId", device.pci.vendor_id, first);
   write_optional_string_field(output, "deviceId", device.pci.device_id, first);
   write_optional_string_field(output, "classId", device.pci.class_id, first);
@@ -163,6 +165,18 @@ void write_pci(std::ostream& output, const DeviceTelemetry& device) {
   write_optional_string_field(output, "subsystemDeviceId",
                               device.pci.subsystem_device_id, first);
   write_optional_number_field(output, "numaNode", device.pci.numa_node, first);
+  write_optional_number_field(output, "iommuGroup", device.pci.iommu_group,
+                              first);
+  write_optional_string_field(output, "currentLinkSpeed",
+                              device.pci.current_link_speed, first);
+  write_optional_number_field(output, "currentLinkWidth",
+                              device.pci.current_link_width, first);
+  write_optional_string_field(output, "maxLinkSpeed",
+                              device.pci.max_link_speed, first);
+  write_optional_number_field(output, "maxLinkWidth",
+                              device.pci.max_link_width, first);
+  write_optional_string_field(output, "resetMethod", device.pci.reset_method,
+                              first);
   write_field(output, "resources",
               [&]() { write_pci_resources(output, device.pci_resources); },
               first);
@@ -256,40 +270,156 @@ void write_named_counters(std::ostream& output,
   output << ']';
 }
 
-void write_spec(std::ostream& output, const std::optional<DeviceSpec>& spec) {
-  if (!spec.has_value()) {
-    output << "null";
-    return;
-  }
-
-  bool first = true;
-  output << '{';
-  write_string_field(output, "cardType", spec->card_type, first);
-  write_number_field(output, "asicCount", spec->asic_count, first);
-  write_number_field(output, "tensixCores", spec->tensix_cores, first);
-  write_number_field(output, "sramBytes", spec->sram_bytes, first);
-  write_number_field(output, "memoryBytes", spec->memory_bytes, first);
-  write_number_field(output, "memoryBandwidthBytesPerSecond",
-                     spec->memory_bandwidth_bytes_per_second, first);
-  output << '}';
-}
-
 void write_memory(std::ostream& output, const DeviceTelemetry& device) {
   bool first = true;
   output << '{';
-  write_optional_number_field(output, "usedBytes", device.memory_used_bytes,
+  write_optional_number_field(output, "usedBytes", device.memory.used_bytes,
                               first);
-  write_optional_number_field(output, "totalBytes", device.memory_total_bytes,
+  write_optional_number_field(output, "totalBytes", device.memory.total_bytes,
                               first);
+  write_optional_number_field(output, "freeBytes", device.memory.free_bytes,
+                              first);
+  write_optional_number_field(output, "availableBytes",
+                              device.memory.available_bytes, first);
+  write_optional_number_field(output, "bandwidthBytesPerSecond",
+                              device.memory.bandwidth_bytes_per_second, first);
+  write_optional_string_field(output, "type", device.memory.type, first);
+  write_optional_string_field(output, "controllerLayout",
+                              device.memory.controller_layout, first);
+  write_optional_number_field(output, "controllerCount",
+                              device.memory.controller_count, first);
+  write_optional_number_field(output, "controllersPerAsic",
+                              device.memory.controllers_per_asic, first);
+  write_optional_number_field(output, "channelCount",
+                              device.memory.channel_count, first);
   output << '}';
 }
 
 void write_tensix(std::ostream& output, const DeviceTelemetry& device) {
   bool first = true;
   output << '{';
-  write_optional_number_field(output, "used", device.tensix_cores_used, first);
-  write_optional_number_field(output, "available",
-                              device.tensix_cores_available, first);
+  write_optional_number_field(output, "used", device.tensix.used, first);
+  write_optional_number_field(output, "available", device.tensix.available,
+                              first);
+  write_optional_number_field(output, "total", device.tensix.total, first);
+  write_optional_number_field(output, "meshRows", device.tensix.mesh_rows,
+                              first);
+  write_optional_number_field(output, "meshCols", device.tensix.mesh_cols,
+                              first);
+  write_optional_string_field(output, "topology", device.tensix.topology,
+                              first);
+  write_optional_string_field(output, "activeRegions",
+                              device.tensix.active_regions, first);
+  write_optional_string_field(output, "source", device.tensix.source, first);
+  output << '}';
+}
+
+void write_metalium_workloads(
+    std::ostream& output,
+    const std::vector<MetaliumWorkloadTelemetry>& workloads) {
+  output << '[';
+  for (std::size_t index = 0; index < workloads.size(); ++index) {
+    if (index > 0) {
+      output << ',';
+    }
+    const auto& workload = workloads[index];
+    bool first = true;
+    output << '{';
+    write_string_field(output, "workloadId", workload.workload_id, first);
+    write_optional_string_field(output, "podNamespace", workload.pod_namespace,
+                                first);
+    write_optional_string_field(output, "podName", workload.pod_name, first);
+    write_optional_string_field(output, "containerName", workload.container_name,
+                                first);
+    write_optional_number_field(output, "active", workload.active, first);
+    write_optional_number_field(output, "programsObserved",
+                                workload.programs_observed, first);
+    write_optional_number_field(output, "tensixCoresUsed",
+                                workload.tensix_cores_used, first);
+    write_optional_number_field(output, "tensixCoresTotal",
+                                workload.tensix_cores_total, first);
+    write_optional_number_field(output, "sampleTimestampSeconds",
+                                workload.sample_timestamp_seconds, first);
+    write_field(output, "stale",
+                [&]() { output << (workload.stale ? "true" : "false"); },
+                first);
+    output << '}';
+  }
+  output << ']';
+}
+
+void write_health_detail(std::ostream& output,
+                         const HealthTelemetry& health) {
+  bool first = true;
+  output << '{';
+  write_optional_string_field(output, "faultCode", health.fault_code, first);
+  write_optional_string_field(output, "faultReason", health.fault_reason,
+                              first);
+  write_optional_number_field(output, "resetRequired", health.reset_required,
+                              first);
+  write_optional_number_field(output, "oomFaultCount", health.oom_fault_count,
+                              first);
+  write_optional_number_field(output, "hangFaultCount", health.hang_fault_count,
+                              first);
+  output << '}';
+}
+
+void write_interconnect_links(std::ostream& output,
+                              const std::vector<InterconnectLink>& links) {
+  output << '[';
+  for (std::size_t index = 0; index < links.size(); ++index) {
+    if (index > 0) {
+      output << ',';
+    }
+    const auto& link = links[index];
+    bool first = true;
+    output << '{';
+    write_string_field(output, "name", link.name, first);
+    write_optional_string_field(output, "type", link.type, first);
+    write_optional_string_field(output, "state", link.state, first);
+    write_optional_string_field(output, "peer", link.peer, first);
+    write_optional_number_field(output, "speedGbps", link.speed_gbps, first);
+    write_optional_string_field(output, "ringId", link.ring_id, first);
+    output << '}';
+  }
+  output << ']';
+}
+
+void write_allocation(std::ostream& output,
+                      const AllocationTelemetry& allocation) {
+  bool first = true;
+  output << '{';
+  write_optional_string_field(output, "claimNamespace",
+                              allocation.claim_namespace, first);
+  write_optional_string_field(output, "claimName", allocation.claim_name,
+                              first);
+  write_optional_string_field(output, "claimUid", allocation.claim_uid, first);
+  write_optional_string_field(output, "podNamespace", allocation.pod_namespace,
+                              first);
+  write_optional_string_field(output, "podName", allocation.pod_name, first);
+  write_optional_string_field(output, "containerName",
+                              allocation.container_name, first);
+  output << '}';
+}
+
+void write_janitor(std::ostream& output, const JanitorTelemetry& janitor) {
+  bool first = true;
+  output << '{';
+  write_optional_string_field(output, "state", janitor.state, first);
+  write_optional_string_field(output, "quarantineReason",
+                              janitor.quarantine_reason, first);
+  write_optional_string_field(output, "lastScrubStatus",
+                              janitor.last_scrub_status, first);
+  write_optional_string_field(output, "lastResetStatus",
+                              janitor.last_reset_status, first);
+  write_optional_number_field(output, "scrubCount", janitor.scrub_count,
+                              first);
+  write_optional_number_field(output, "resetCount", janitor.reset_count,
+                              first);
+  write_optional_number_field(output, "lastScrubTimestampSeconds",
+                              janitor.last_scrub_timestamp_seconds, first);
+  write_optional_number_field(output, "lastResetTimestampSeconds",
+                              janitor.last_reset_timestamp_seconds, first);
   output << '}';
 }
 
@@ -315,11 +445,24 @@ void write_device(std::ostream& output, const DeviceTelemetry& device) {
   write_field(output, "pcieCounters",
               [&]() { write_named_counters(output, device.pcie_counters); },
               first);
-  write_field(output, "spec", [&]() { write_spec(output, device.spec); },
-              first);
   write_field(output, "memory", [&]() { write_memory(output, device); },
               first);
   write_field(output, "tensix", [&]() { write_tensix(output, device); },
+              first);
+  write_field(output, "metaliumWorkloads",
+              [&]() {
+                write_metalium_workloads(output, device.metalium_workloads);
+              },
+              first);
+  write_field(output, "healthDetail",
+              [&]() { write_health_detail(output, device.health_detail); },
+              first);
+  write_field(output, "interconnectLinks",
+              [&]() { write_interconnect_links(output, device.interconnect_links); },
+              first);
+  write_field(output, "allocation",
+              [&]() { write_allocation(output, device.allocation); }, first);
+  write_field(output, "janitor", [&]() { write_janitor(output, device.janitor); },
               first);
   output << '}';
 }

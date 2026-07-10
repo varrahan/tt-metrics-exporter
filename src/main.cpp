@@ -29,6 +29,10 @@ struct Options {
   std::uint16_t port = 9400;
   std::chrono::seconds poll_interval{5};
   std::filesystem::path sysfs_root = "/sys/class/tenstorrent";
+  std::filesystem::path allocation_state_root;
+  std::filesystem::path janitor_state_root;
+  std::filesystem::path metalium_profiler_state_root;
+  std::chrono::seconds metalium_profiler_stale_after{15};
   bool once = false;
   bool json = false;
   bool collect_pcie_counters = false;
@@ -37,6 +41,9 @@ struct Options {
 void print_usage(const char* program) {
   std::cerr << "usage: " << program
             << " [--sysfs-root PATH] [--listen-address ADDR] [--port PORT]"
+               " [--allocation-state-root PATH] [--janitor-state-root PATH]"
+               " [--metalium-profiler-state-root PATH]"
+               " [--metalium-profiler-stale-after SECONDS]"
                " [--poll-interval SECONDS] [--collect-pcie-counters]"
                " [--once] [--json]\n";
 }
@@ -78,6 +85,32 @@ bool parse_args(int argc, char** argv, Options& options) {
         return false;
       }
       options.sysfs_root = value;
+    } else if (arg == "--allocation-state-root") {
+      char* value = require_value("--allocation-state-root");
+      if (value == nullptr) {
+        return false;
+      }
+      options.allocation_state_root = value;
+    } else if (arg == "--janitor-state-root") {
+      char* value = require_value("--janitor-state-root");
+      if (value == nullptr) {
+        return false;
+      }
+      options.janitor_state_root = value;
+    } else if (arg == "--metalium-profiler-state-root") {
+      char* value = require_value("--metalium-profiler-state-root");
+      if (value == nullptr) {
+        return false;
+      }
+      options.metalium_profiler_state_root = value;
+    } else if (arg == "--metalium-profiler-stale-after") {
+      char* value = require_value("--metalium-profiler-stale-after");
+      if (value == nullptr ||
+          !parse_seconds(value, options.metalium_profiler_stale_after)) {
+        std::cerr << "--metalium-profiler-stale-after must be a positive "
+                     "number of seconds\n";
+        return false;
+      }
     } else if (arg == "--listen-address") {
       char* value = require_value("--listen-address");
       if (value == nullptr) {
@@ -125,6 +158,10 @@ int main(int argc, char** argv) {
 
   tt::metrics::SysfsCollector collector(
       tt::metrics::CollectorConfig{options.sysfs_root,
+                                   options.allocation_state_root,
+                                   options.janitor_state_root,
+                                   options.metalium_profiler_state_root,
+                                   options.metalium_profiler_stale_after.count(),
                                    options.collect_pcie_counters});
 
   if (options.once) {
