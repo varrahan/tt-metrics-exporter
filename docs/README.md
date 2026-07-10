@@ -20,10 +20,14 @@ TT-Metalium workload profiler snapshots.
 Shared VM prerequisites are tracked outside this component in the parent
 repository's `vm/` directory.
 
-When using QEMU, launch the VM with host CPU passthrough, for example
-`-cpu host`. Current Tenstorrent user-space wheels require CPU features such as
-AVX/AVX2 and may fail with `Illegal instruction` under QEMU's default virtual
-CPU model.
+When using Tenstorrent's QEMU bridge, use its documented TCG configuration with
+`-cpu max`; do not enable KVM or use `-cpu host`. The current bridge supports
+PCI enumeration and compatible KMD binding but not the complete TTNN device-open
+path.
 
-See [TT_METRICS_EXPORTER.md](guides/TT_METRICS_EXPORTER.md) for the local
-implementation guide.
+See:
+
+- [HOW_IT_WORKS.md](guides/HOW_IT_WORKS.md) for the component architecture and
+  end-to-end data flow.
+- [TT_METRICS_EXPORTER.md](guides/TT_METRICS_EXPORTER.md) for the build and
+  operation guide.
