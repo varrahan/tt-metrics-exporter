@@ -7,15 +7,81 @@ and structured JSON for provisioning logic.
 ## Runtime Sources
 
 - `/sys/class/tenstorrent`: device discovery, firmware attributes, hwmon,
-  runtime power state, PCI identity, PCI resources, and optional simulator
-  counters.
+  runtime power state, PCI identity, PCIe link state, IOMMU group, reset method,
+  PCI resources, actual memory/core/topology fields when exposed, and optional
+  simulator counters.
 - `/dev/tenstorrent`: character devices that can be mounted into containers.
-- `tt-smi`: system management data when installed and functional.
-- TT-Metalium: future source for live Tensix core usage and profiler data.
+- Kubernetes DRA allocation state: node-local files passed with
+  `--allocation-state-root`, used for per-workload ownership.
+- Hardware janitor state: node-local files passed with `--janitor-state-root`,
+  used for scrub/reset/quarantine visibility.
+- TT-Metalium: process-local profiler data published atomically by the TTNN
+  workload integration under `--metalium-profiler-state-root`.
 
 In the current `ttsim` VM, run QEMU with `-cpu host` before installing or
 executing Tenstorrent wheels. The default QEMU virtual CPU can lack AVX/AVX2 and
-cause `tt-smi` or `ttnn` to fail with `Illegal instruction`.
+cause `ttnn` or TT-Metalium components to fail with `Illegal instruction`.
+
+Do not add a `tt-smi` subprocess path to the exporter. If a value only exists
+behind `tt-smi`, add or wait for a safe lower-level source before making it part
+of runtime collection.
+
+Do not synthesize capacity from an internal card-spec table. The exporter should
+report capacity, usage, topology, and performance values only when a safe source
+actually exposes them.
+
+## Actual Value File Contract
+
+The exporter tolerates missing files. Agents should write one directory per
+device under the relevant root, keyed by the sysfs device ID, PCI BDF, or
+character-device basename.
+
+Safe sysfs files currently collected when present include:
+
+- Memory: `memory_usage`, `memory_used_bytes`, `memory_total_bytes`,
+  `memory_free_bytes`, `memory_available_bytes`,
+  `memory_bandwidth_bytes_per_second`, `memory_type`,
+  `gddr_controller_layout`, `gddr_controller_count`,
+  `gddr_controllers_per_asic`, and `dram_channel_count`.
+- Tensix: `tensix_cores_used`, `tensix_cores_available`,
+  `tensix_cores_total`, `tensix_mesh`, `tensix_mesh_rows`,
+  `tensix_mesh_cols`, `tensix_topology`, and `tensix_active_regions`.
+- Health: `fault_code`, `fault_reason`, `reset_required`,
+  `oom_fault_count`, and `hang_fault_count`.
+- Links: directories under `scaleout_links/`, `ethernet_links/`, or
+  `fabric_links/`, with files such as `state`, `peer`, `speed_gbps`, and
+  `ring_id`.
+
+DRA allocation state directories can contain:
+
+- `claim_namespace`, `claim_name`, `claim_uid`, `pod_namespace`, `pod_name`,
+  and `container_name`.
+
+Janitor state directories can contain:
+
+- `state`, `quarantine_reason`, `last_scrub_status`, `last_reset_status`,
+  `scrub_count`, `reset_count`, `last_scrub_timestamp_seconds`, and
+  `last_reset_timestamp_seconds`.
+
+TT-Metalium workload snapshots use this layout:
+
+```text
+<profiler-root>/<device-key>/<workload>.state
+```
+
+`device-key` is the sysfs device ID, PCI BDF, or character-device basename.
+The publisher atomically replaces a `schema_version=1` key/value file containing
+`workload_id`, `sample_timestamp_seconds`, `active`, `programs_observed`,
+`tensix_cores_used`, optional `tensix_cores_total`, and optional Kubernetes pod
+labels. The exporter treats samples older than
+`--metalium-profiler-stale-after` as inactive; the default is 15 seconds. It
+also rejects timestamps implausibly far in the future, malformed records,
+records larger than 16 KiB, and more than 1024 workload records per device.
+
+Profiler records are process-local, so the TTNN process must call
+`ttnn.ReadDeviceProfiler(device)` and publish the result through
+`integrations/ttnn/metalium_profiler_publisher.py`. Do not link the exporter to
+TT-Metalium and open an already-owned device solely for telemetry.
 
 ## Endpoints
 
@@ -41,16 +107,42 @@ From the QEMU VM or a physical Tenstorrent host:
 ./build/tt-metrics-exporter --sysfs-root /sys/class/tenstorrent --once
 ./build/tt-metrics-exporter --sysfs-root /sys/class/tenstorrent --once --json
 ./build/tt-metrics-exporter --sysfs-root /sys/class/tenstorrent --port 9400
+./build/tt-metrics-exporter --sysfs-root /sys/class/tenstorrent \
+  --allocation-state-root /var/lib/tt-device-plugin/allocations \
+  --janitor-state-root /var/lib/tt-device-plugin/janitor \
+  --metalium-profiler-state-root /var/lib/tt-device-plugin/metalium-profiler \
+  --metalium-profiler-stale-after 15 \
+  --port 9400
 ```
+
+Before TTNN initializes, use a profiler-enabled TT-Metalium source build and
+set:
+
+```bash
+export TT_METAL_DEVICE_PROFILER=1
+export TT_METAL_PROFILER_MID_RUN_DUMP=1
+export TT_METAL_PROFILER_CPP_POST_PROCESS=1
+export TT_METAL_PROFILER_DISABLE_DUMP_TO_FILES=1
+```
+
+The stock `ttnn==0.73.1` wheel currently installed in the QEMU VM is not built
+with Tracy support. Tenstorrent documents device profiling as fully supported
+on source builds. In TT-Metalium v0.73.1, `./build_metal.sh` enables Tracy by
+default; do not pass `--disable-profiler`. The equivalent manual CMake setting
+is `-DENABLE_TRACY=ON`.
+
+The dump-to-files setting retains the in-process C++ results used by the
+publisher while avoiding profiler CSV artifacts in workload containers.
 
 ## Current Simulator Caveat
 
-The current `ttsim` VM may only expose PCI, BAR, character-device, and runtime
-power-management metadata. Firmware, hwmon, live memory, and Tensix utilization
-families remain empty until `tt-kmd`, firmware telemetry, `tt-smi`, or
-TT-Metalium exposes those values.
-
-Root-level `tt-smi` probing currently reaches UMD topology discovery and then
-crashes this simulator instance. Treat `tt-smi` as installed but unsafe for
-runtime collection in this VM profile until the simulator profile or UMD probing
-path is fixed.
+The v0.73.1 Tracy-enabled source build completes, but actual profiler reads are
+not supported by the current simulator stack. Opening the QEMU device through
+that source UMD terminates QEMU during topology discovery. Direct
+`libttsim_wh_v1.9.3.so` execution initializes the device and compiles a
+profiled kernel, but then fails with
+`UnsupportedFunctionality: noc_cmd_ctrl: write: noc_at_len_be=0` and returns no
+program records. Use compatible physical hardware or a TTSim release with the
+required profiler NoC behavior for end-to-end dynamic validation. The exporter
+and state contract can still be tested safely in the VM without opening the
+device.

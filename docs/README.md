@@ -8,9 +8,17 @@ The exporter is a C++ node-local service for Tenstorrent hosts. It scans
 typed DRA-friendly device data at `/v1/devices`.
 
 Runtime validation that depends on `tt-kmd`, `/sys/class/tenstorrent`,
-`/dev/tenstorrent`, Docker, `kind`, TT-Metalium, or `tt-smi` must run from the
-QEMU `ttsim` VM or a physical Tenstorrent host. Host-side checks are suitable
-for CMake builds and unit tests only.
+`/dev/tenstorrent`, Docker, `kind`, or TT-Metalium must run from the QEMU
+`ttsim` VM or a physical Tenstorrent host. Host-side checks are suitable for
+CMake builds and unit tests only.
+
+Do not use `tt-smi` as an exporter source. The exporter collects only from safe
+node-local sources: `tt-kmd` sysfs, backing PCI sysfs, `hwmon` when available,
+Kubernetes allocation state, janitor state, and atomically published
+TT-Metalium workload profiler snapshots.
+
+Shared VM prerequisites are tracked outside this component in the parent
+repository's `vm/` directory.
 
 When using QEMU, launch the VM with host CPU passthrough, for example
 `-cpu host`. Current Tenstorrent user-space wheels require CPU features such as
