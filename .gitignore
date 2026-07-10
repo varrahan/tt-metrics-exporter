@@ -76,3 +76,7 @@ Testing/
 .cache/
 __pycache__/
 *.py[cod]
+
+# Temporary md files to guide agents
+docs/temp/
+docs/temp/*
