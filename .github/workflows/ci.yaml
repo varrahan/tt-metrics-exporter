@@ -1,0 +1,69 @@
+name: telemetry-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Install host validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-build python3-jsonschema python3-setuptools python3-wheel python3-yaml
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.34.1
+      - name: Python tests, package, and documentation checks
+        run: |
+          uv run python -m compileall -q src integrations tests scripts
+          uv run scripts/ci/run_tests.py
+          uv run ruff check src tests scripts
+          uv run python -m build --wheel --no-isolation --outdir dist
+          python3 -m zipfile -l dist/tt_metrics_exporter-*.whl
+          uv run python scripts/ci/check_docs.py
+      - name: Kubernetes v1.34 and monitoring validation
+        run: |
+          scripts/validation/manifests.sh
+          scripts/validation/monitoring.sh
+
+  image:
+    runs-on: ubuntu-24.04
+    needs: [host]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tested final image
+        run: |
+          docker build \
+            --build-arg VERSION=0.1.0 \
+            --build-arg REVISION="${GITHUB_SHA}" \
+            --build-arg SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" \
+            --build-arg BUILD_DATE="$(git show -s --format=%cI HEAD)" \
+            --tag tt-metrics-exporter:ci .
+          SKIP_SUPPLY_CHAIN=1 scripts/validation/image.sh tt-metrics-exporter:ci image-reports
+      - uses: anchore/sbom-action@v0
+        with:
+          image: tt-metrics-exporter:ci
+          format: spdx-json
+          output-file: image-reports/sbom.spdx.json
+      - uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: tt-metrics-exporter:ci
+          format: sarif
+          output: image-reports/vulnerabilities.sarif
+          severity: CRITICAL
+          exit-code: "1"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-reports
+          path: image-reports
