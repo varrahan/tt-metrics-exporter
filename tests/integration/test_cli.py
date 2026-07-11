@@ -20,9 +20,7 @@ class CliContractTest(unittest.TestCase):
             device.mkdir(parents=True)
             (device / "architecture").write_text("wormhole\n")
             (device / "board_type").write_text("n300\n")
-            (device / "memory_usage").write_text(
-                "used_bytes 1 KiB\ntotal_bytes 4 KiB\n"
-            )
+            (device / "memory_usage").write_text("used_bytes 1 KiB\ntotal_bytes 4 KiB\n")
             arguments = ["--sysfs-root", root, "--once"]
             devices = SysfsCollector(CollectorConfig(sysfs_root=root)).collect().devices
             for suffix, expected in (
@@ -41,6 +39,20 @@ class CliContractTest(unittest.TestCase):
             stdout=subprocess.DEVNULL,
         )
         self.assertEqual(result.returncode, 1)
+
+    def test_hwmon_collection_is_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "sysfs"
+            sensor = root / "0/device/hwmon/hwmon0/temp1_input"
+            sensor.parent.mkdir(parents=True)
+            sensor.write_text("55000\n")
+
+            command = [EXPORTER, "--sysfs-root", root, "--once"]
+            default = subprocess.run(command, capture_output=True, check=True)
+            enabled = subprocess.run([*command, "--collect-hwmon"], capture_output=True, check=True)
+
+            self.assertNotIn(b"tt_hwmon_sensor_value{", default.stdout)
+            self.assertIn(b"tt_hwmon_sensor_value{", enabled.stdout)
 
 
 if __name__ == "__main__":

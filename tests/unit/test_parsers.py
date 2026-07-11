@@ -36,8 +36,7 @@ class ParserContractTest(unittest.TestCase):
             ("2048 8192\n", (2048, 8192)),
             ("used: 1.5 GiB\ntotal: 3 TiB\n", (1610612736, 3298534883328)),
             ("used: 1e100 GiB\n", (None, None)),
-            ((CORPUS / "memory/regression-units.txt").read_text(),
-             (1610612736, 18446744073709551615)),
+            ((CORPUS / "memory/regression-units.txt").read_text(), (1610612736, 18446744073709551615)),
         ]
         for content, expected in cases:
             parsed = parse_memory_usage(content)
@@ -45,16 +44,12 @@ class ParserContractTest(unittest.TestCase):
 
     def test_pci_corpus_and_examples(self) -> None:
         self.assertEqual(parse_pci_resources(""), [])
-        resource = parse_pci_resources(
-            "0x800000000 0x81fffffff 0x140204\n0x0 0x0 0x0\n"
-        )[0]
+        resource = parse_pci_resources("0x800000000 0x81fffffff 0x140204\n0x0 0x0 0x0\n")[0]
         self.assertEqual(
             (resource.index, resource.start, resource.end, resource.flags, resource.size_bytes),
             (0, 34359738368, 34896609279, 1311236, 536870912),
         )
-        overflow = parse_pci_resources(
-            (CORPUS / "pci/regression-overflow.txt").read_text()
-        )
+        overflow = parse_pci_resources((CORPUS / "pci/regression-overflow.txt").read_text())
         self.assertEqual(len(overflow), 1)
         self.assertEqual(overflow[0].size_bytes, 1)
 
@@ -62,9 +57,7 @@ class ParserContractTest(unittest.TestCase):
         randomizer = random.Random(0x54544D4554524943)
         alphabet = "0123456789abcdefxABCDEF ._:-\n\tkKmMgGtTiIbBusedtotal"
         for _ in range(250):
-            content = "".join(
-                randomizer.choice(alphabet) for _ in range(randomizer.randrange(200))
-            )
+            content = "".join(randomizer.choice(alphabet) for _ in range(randomizer.randrange(200)))
             self.assertEqual(parse_memory_usage(content), parse_memory_usage(content))
             self.assertEqual(parse_pci_resources(content), parse_pci_resources(content))
 

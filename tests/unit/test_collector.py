@@ -17,18 +17,8 @@ from tt_metrics_exporter.models import (
 from tt_metrics_exporter.collection.secure_io import SecureDirectory, valid_component
 
 
-def profiler_state(
-    schema: int, workload: str, timestamp: int, used: int = 1
-) -> str:
-    return (
-        f"schema_version={schema}\n"
-        f"workload_id={workload}\n"
-        "active=1\n"
-        "programs_observed=1\n"
-        f"tensix_cores_used={used}\n"
-        "tensix_cores_total=80\n"
-        f"sample_timestamp_seconds={timestamp}\n"
-    )
+def profiler_state(schema: int, workload: str, timestamp: int, used: int = 1) -> str:
+    return f"schema_version={schema}\nworkload_id={workload}\nactive=1\nprograms_observed=1\ntensix_cores_used={used}\ntensix_cores_total=80\nsample_timestamp_seconds={timestamp}\n"
 
 
 class SecureIoTest(unittest.TestCase):
@@ -64,15 +54,9 @@ class SecureIoTest(unittest.TestCase):
                 self.assertIsNone(directory.open_directory("../escape", diagnostics))
                 self.assertEqual(len(directory.entries(2, diagnostics)), 2)
 
-            self.assertGreaterEqual(
-                diagnostics.issues[CollectionIssue.INVALID_VALUE], 5
-            )
-            self.assertEqual(
-                diagnostics.issues[CollectionIssue.OVERSIZED_RECORD], 1
-            )
-            self.assertEqual(
-                diagnostics.issues[CollectionIssue.CARDINALITY_LIMIT], 1
-            )
+            self.assertGreaterEqual(diagnostics.issues[CollectionIssue.INVALID_VALUE], 5)
+            self.assertEqual(diagnostics.issues[CollectionIssue.OVERSIZED_RECORD], 1)
+            self.assertEqual(diagnostics.issues[CollectionIssue.CARDINALITY_LIMIT], 1)
 
     def test_symlinked_root_is_not_followed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -88,15 +72,11 @@ class SecureIoTest(unittest.TestCase):
 
 class CollectorTest(unittest.TestCase):
     def test_missing_sysfs_root_is_critical(self) -> None:
-        result = SysfsCollector(
-            CollectorConfig(sysfs_root=Path("/definitely/not/present"))
-        ).collect()
+        result = SysfsCollector(CollectorConfig(sysfs_root=Path("/definitely/not/present"))).collect()
         self.assertFalse(result.critical_sources_ok)
         self.assertEqual(result.devices, [])
         self.assertEqual(
-            result.sources[TelemetrySource.SYSFS_ROOT].issues[
-                CollectionIssue.MISSING_ROOT
-            ],
+            result.sources[TelemetrySource.SYSFS_ROOT].issues[CollectionIssue.MISSING_ROOT],
             1,
         )
 
@@ -213,12 +193,7 @@ class CollectorTest(unittest.TestCase):
             now = int(time.time())
             v2 = profiler / "v2/workloads/pod-a/0/snapshot.state"
             v2.parent.mkdir(parents=True)
-            v2.write_text(
-                profiler_state(2, "same-workload", now, 5)
-                + "pod_namespace=default\n"
-                + "pod_name=worker-0\n"
-                + "container_name=model\n"
-            )
+            v2.write_text(profiler_state(2, "same-workload", now, 5) + "pod_namespace=default\n" + "pod_name=worker-0\n" + "container_name=model\n")
             legacy = profiler / "0/legacy.state"
             legacy.parent.mkdir(parents=True)
             legacy.write_text(profiler_state(1, "same-workload", now, 79))
@@ -229,6 +204,7 @@ class CollectorTest(unittest.TestCase):
                     allocation_state_root=allocation,
                     janitor_state_root=janitor,
                     metalium_profiler_state_root=profiler,
+                    collect_hwmon=True,
                     collect_pcie_counters=True,
                 )
             ).collect()
@@ -262,12 +238,8 @@ class CollectorTest(unittest.TestCase):
             self.assertEqual(len(collected.metalium_workloads), 1)
             self.assertEqual(collected.metalium_workloads[0].workload_id, "pod-a")
             self.assertEqual(collected.metalium_workloads[0].tensix_cores_used, 5)
-            self.assertTrue(
-                result.sources[TelemetrySource.ALLOCATION_STATE].accessible
-            )
-            self.assertTrue(
-                result.sources[TelemetrySource.METALIUM_PROFILER_STATE].accessible
-            )
+            self.assertTrue(result.sources[TelemetrySource.ALLOCATION_STATE].accessible)
+            self.assertTrue(result.sources[TelemetrySource.METALIUM_PROFILER_STATE].accessible)
 
             for path in (allocation / "0").iterdir():
                 path.unlink()
@@ -279,6 +251,7 @@ class CollectorTest(unittest.TestCase):
                 )
             ).collect()
             self.assertIsNone(cleaned.devices[0].allocation.pod_name)
+            self.assertEqual(cleaned.devices[0].hwmon_sensors, [])
 
     def test_profiler_security_freshness_deduplication_and_aggregation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -288,21 +261,11 @@ class CollectorTest(unittest.TestCase):
             profiler = base / "profiler/0"
             profiler.mkdir(parents=True)
             now = int(time.time())
-            (profiler / "fresh.state").write_text(
-                profiler_state(1, "default/worker", now, 24)
-            )
-            (profiler / "duplicate.state").write_text(
-                profiler_state(1, "default/worker", now - 1, 12)
-            )
-            (profiler / "stale.state").write_text(
-                profiler_state(1, "default/stale", 1, 8)
-            )
-            (profiler / "unsupported.state").write_text(
-                profiler_state(99, "ignored", now)
-            )
-            (profiler / "control.state").write_text(
-                profiler_state(1, "bad\x01label", now)
-            )
+            (profiler / "fresh.state").write_text(profiler_state(1, "default/worker", now, 24))
+            (profiler / "duplicate.state").write_text(profiler_state(1, "default/worker", now - 1, 12))
+            (profiler / "stale.state").write_text(profiler_state(1, "default/stale", 1, 8))
+            (profiler / "unsupported.state").write_text(profiler_state(99, "ignored", now))
+            (profiler / "control.state").write_text(profiler_state(1, "bad\x01label", now))
             outside = base / "outside.state"
             outside.write_text(profiler_state(1, "escaped", now))
             (profiler / "symlink.state").symlink_to(outside)
@@ -333,15 +296,9 @@ class CollectorTest(unittest.TestCase):
             self.assertEqual(device.tensix.available, 56)
             self.assertEqual(device.tensix.source, "metalium_profiler")
             diagnostics = result.sources[TelemetrySource.METALIUM_PROFILER_STATE]
-            self.assertGreaterEqual(
-                diagnostics.issues[CollectionIssue.INVALID_VALUE], 3
-            )
-            self.assertEqual(
-                diagnostics.issues[CollectionIssue.UNSUPPORTED_SCHEMA], 1
-            )
-            self.assertEqual(
-                diagnostics.issues[CollectionIssue.OVERSIZED_RECORD], 1
-            )
+            self.assertGreaterEqual(diagnostics.issues[CollectionIssue.INVALID_VALUE], 3)
+            self.assertEqual(diagnostics.issues[CollectionIssue.UNSUPPORTED_SCHEMA], 1)
+            self.assertEqual(diagnostics.issues[CollectionIssue.OVERSIZED_RECORD], 1)
 
     def test_fresh_workload_wins_bounded_export(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -351,12 +308,8 @@ class CollectorTest(unittest.TestCase):
             profiler = base / "profiler/0"
             profiler.mkdir(parents=True)
             for index in range(1024):
-                (profiler / f"stale-{index}.state").write_text(
-                    profiler_state(1, f"stale-{index}", 1)
-                )
-            (profiler / "fresh.state").write_text(
-                profiler_state(1, "fresh", int(time.time()))
-            )
+                (profiler / f"stale-{index}.state").write_text(profiler_state(1, f"stale-{index}", 1))
+            (profiler / "fresh.state").write_text(profiler_state(1, "fresh", int(time.time())))
             result = SysfsCollector(
                 CollectorConfig(
                     sysfs_root=sysfs,
@@ -367,9 +320,7 @@ class CollectorTest(unittest.TestCase):
             self.assertEqual(len(workloads), 1024)
             self.assertEqual(workloads[0].workload_id, "fresh")
             self.assertGreaterEqual(
-                result.sources[TelemetrySource.METALIUM_PROFILER_STATE].issues[
-                    CollectionIssue.CARDINALITY_LIMIT
-                ],
+                result.sources[TelemetrySource.METALIUM_PROFILER_STATE].issues[CollectionIssue.CARDINALITY_LIMIT],
                 1,
             )
 

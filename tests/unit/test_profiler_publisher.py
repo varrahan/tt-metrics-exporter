@@ -55,9 +55,7 @@ class MetaliumProfilerPublisherTest(unittest.TestCase):
 
     def test_empty_profiler_read_marks_configured_device_inactive(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
-            publisher = MetaliumProfilerPublisher(
-                temporary_directory, "idle", device_keys=(0,)
-            )
+            publisher = MetaliumProfilerPublisher(temporary_directory, "idle", device_keys=(0,))
             summary = publisher.publish_profiler_data({})
             self.assertEqual(summary["0"]["active"], 0)
             self.assertEqual(summary["0"]["tensix_cores_used"], 0)
@@ -71,25 +69,15 @@ class MetaliumProfilerPublisherTest(unittest.TestCase):
                 device_keys=("0000:01:00.0",),
                 device_key_map={0: "0000:01:00.0"},
             )
-            publisher.publish_profiler_data(
-                {0: [SimpleNamespace(core_count=8, num_available_cores=80)]}
-            )
-            self.assertTrue(
-                list(
-                    (Path(temporary_directory) / "0000:01:00.0").glob("*.state")
-                )
-            )
+            publisher.publish_profiler_data({0: [SimpleNamespace(core_count=8, num_available_cores=80)]})
+            self.assertTrue(list((Path(temporary_directory) / "0000:01:00.0").glob("*.state")))
             publisher.close()
 
     def test_rejects_impossible_core_count(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
-            publisher = MetaliumProfilerPublisher(
-                temporary_directory, "invalid", device_keys=(0,), strict=True
-            )
+            publisher = MetaliumProfilerPublisher(temporary_directory, "invalid", device_keys=(0,), strict=True)
             with self.assertRaises(ValueError):
-                publisher.publish_profiler_data(
-                    {0: [SimpleNamespace(core_count=81, num_available_cores=80)]}
-                )
+                publisher.publish_profiler_data({0: [SimpleNamespace(core_count=81, num_available_cores=80)]})
             publisher.close()
 
     def test_best_effort_failure_state_and_warning_are_bounded(self):
@@ -127,9 +115,7 @@ class MetaliumProfilerPublisherTest(unittest.TestCase):
 
     def test_strict_publication_failure_raises(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
-            publisher = MetaliumProfilerPublisher(
-                temporary_directory, "strict", device_keys=(0,), strict=True
-            )
+            publisher = MetaliumProfilerPublisher(temporary_directory, "strict", device_keys=(0,), strict=True)
             with mock.patch("os.fsync", side_effect=OSError("read only")):
                 with self.assertRaises(OSError):
                     publisher.publish_profiler_data({})
@@ -164,11 +150,14 @@ class MetaliumProfilerPublisherTest(unittest.TestCase):
                     os.environ[name] = value
 
     def test_profiler_environment_is_explicit(self):
-        original = {name: os.environ.get(name) for name in (
-            "TT_METAL_DEVICE_PROFILER",
-            "TT_METAL_PROFILER_MID_RUN_DUMP",
-            "TT_METAL_PROFILER_CPP_POST_PROCESS",
-        )}
+        original = {
+            name: os.environ.get(name)
+            for name in (
+                "TT_METAL_DEVICE_PROFILER",
+                "TT_METAL_PROFILER_MID_RUN_DUMP",
+                "TT_METAL_PROFILER_CPP_POST_PROCESS",
+            )
+        }
         try:
             for name in original:
                 os.environ.pop(name, None)

@@ -22,9 +22,7 @@ def request(port: int, path: str) -> tuple[int, bytes, dict[str, str]]:
     try:
         connection.request("GET", path)
         response = connection.getresponse()
-        return response.status, response.read(), {
-            name.lower(): value for name, value in response.getheaders()
-        }
+        return response.status, response.read(), {name.lower(): value for name, value in response.getheaders()}
     finally:
         connection.close()
 
@@ -105,30 +103,23 @@ def test_http_server_contract() -> None:
             assert headers["connection"] == "close"
             assert headers["x-content-type-options"] == "nosniff"
 
-            assert status_code(raw_request(
-                port, b"GET /healthz HTTP/1.1\r\nHost: localhost\r\n\r\n", True
-            )) == 200
-            assert status_code(raw_request(
-                port, b"POST /healthz HTTP/1.1\r\nHost: localhost\r\n\r\n"
-            )) == 405
-            method_response = raw_request(
-                port, b"HEAD /healthz HTTP/1.1\r\nHost: localhost\r\n\r\n"
-            )
+            assert status_code(raw_request(port, b"GET /healthz HTTP/1.1\r\nHost: localhost\r\n\r\n", True)) == 200
+            assert status_code(raw_request(port, b"POST /healthz HTTP/1.1\r\nHost: localhost\r\n\r\n")) == 405
+            method_response = raw_request(port, b"HEAD /healthz HTTP/1.1\r\nHost: localhost\r\n\r\n")
             assert status_code(method_response) == 405
             assert b"allow: GET\r\n" in method_response
             assert status_code(raw_request(port, b"not-http\r\n\r\n")) == 400
-            assert status_code(raw_request(
-                port,
-                b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1\r\n\r\nx",
-            )) == 400
-            assert status_code(raw_request(
-                port, b"GET /healthz/ HTTP/1.1\r\nHost: localhost\r\n\r\n"
-            )) == 404
-            oversized = (
-                b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nX-Large: "
-                + b"a" * 9000
-                + b"\r\n\r\n"
+            assert (
+                status_code(
+                    raw_request(
+                        port,
+                        b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1\r\n\r\nx",
+                    )
+                )
+                == 400
             )
+            assert status_code(raw_request(port, b"GET /healthz/ HTTP/1.1\r\nHost: localhost\r\n\r\n")) == 404
+            oversized = b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nX-Large: " + b"a" * 9000 + b"\r\n\r\n"
             assert status_code(raw_request(port, oversized)) == 431
 
             # One silent client consumes one worker; the other still serves.
@@ -156,9 +147,7 @@ def test_http_server_contract() -> None:
             # Saturate workers and the bounded queue; excess accepts are rejected.
             for _ in range(10):
                 try:
-                    client = socket.create_connection(
-                        ("127.0.0.1", port), timeout=0.5
-                    )
+                    client = socket.create_connection(("127.0.0.1", port), timeout=0.5)
                     sockets.append(client)
                 except OSError:
                     pass

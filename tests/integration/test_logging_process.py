@@ -66,9 +66,7 @@ def test_logging_process_contract() -> None:
         profiler = Path(temp) / "profiler"
         (root / "0").mkdir(parents=True)
         (profiler / "0").mkdir(parents=True)
-        (profiler / "0" / "bad.state").write_text(
-            "schema_version=999\nworkload_id=do-not-log-this\n"
-        )
+        (profiler / "0" / "bad.state").write_text("schema_version=999\nworkload_id=do-not-log-this\n")
         port = reserve_port()
         process = subprocess.Popen(
             [

@@ -13,9 +13,7 @@ class LoggingTest(unittest.TestCase):
         output = io.StringIO()
         logger = Logger("json", LogLevel.INFO, output, wall_time=lambda: 0)
         logger.log(LogLevel.DEBUG, "hidden", "hidden")
-        logger.log(LogLevel.INFO, "event", "line\nmessage", {
-            "valid_field": "x" * 300, "bad-name": "ignored"
-        })
+        logger.log(LogLevel.INFO, "event", "line\nmessage", {"valid_field": "x" * 300, "bad-name": "ignored"})
         record = json.loads(output.getvalue())
         self.assertEqual(record["timestamp"], "1970-01-01T00:00:00.000Z")
         self.assertEqual(record["event"], "event")

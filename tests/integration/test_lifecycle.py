@@ -38,9 +38,7 @@ def wait_for(port: int, path: str, expected: int, timeout: float = 5) -> bytes:
         except (ConnectionError, OSError, http.client.HTTPException) as error:
             last_error = error
         time.sleep(0.05)
-    raise AssertionError(
-        f"{path} did not return {expected}; last error: {last_error}"
-    )
+    raise AssertionError(f"{path} did not return {expected}; last error: {last_error}")
 
 
 def test_lifecycle_contract() -> None:
