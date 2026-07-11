@@ -63,7 +63,7 @@ jobs:
           image: ghcr.io/${{ github.repository }}/tt-metrics-exporter@${{ steps.image.outputs.digest }}
           format: spdx-json
           output-file: dist/sbom.spdx.json
-      - uses: aquasecurity/trivy-action@0.30.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/${{ github.repository }}/tt-metrics-exporter@${{ steps.image.outputs.digest }}
           format: sarif
