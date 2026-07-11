@@ -1,6 +1,6 @@
 # Tenstorrent Metrics Exporter
 
-This directory contains the C++ Tenstorrent metrics exporter described in
+This directory contains the Python Tenstorrent metrics exporter described in
 [`docs/guides/TT_METRICS_EXPORTER.md`](docs/guides/TT_METRICS_EXPORTER.md).
 It is kept self-contained so it can be split into a separate repository.
 
@@ -44,11 +44,12 @@ Current implementation scope:
   `tt_memory_total_bytes`, `tt_tensix_cores_used`, and
   `tt_tensix_cores_available` only when a safe source reports those values.
 - Cache telemetry in a polling loop and serve `/metrics` and `/v1/devices` on
-  port `9400`.
+  port `9400`, with shallow liveness at `/healthz` and snapshot readiness at
+  `/readyz`.
 
 The workload-side TTNN publisher lives at
-`integrations/ttnn/metalium_profiler_publisher.py`. Kubernetes DaemonSet
-packaging remains a future implementation layer.
+`integrations/ttnn/metalium_profiler_publisher.py`. Kubernetes DaemonSet,
+monitoring, and environment overlays live under `deploy/kubernetes`.
 
 The exporter does not run `tt-smi` and should not grow a `tt-smi` subprocess
 path. If a value only exists through `tt-smi`, treat that as a missing safe
@@ -58,6 +59,9 @@ before depending on it.
 The exporter does not synthesize static capacity from a card-type table.
 Capacity, memory, core, and bandwidth values must come from the device driver,
 firmware telemetry, Kubernetes allocation state, or TT-Metalium/profiler data.
+
+The stable liveness, readiness, snapshot, and critical-source behavior is
+defined in [`docs/info/OPERATIONAL_CONTRACT.md`](docs/info/OPERATIONAL_CONTRACT.md).
 
 The current QEMU `ttsim` VM may not expose firmware telemetry attributes. In
 that case the exporter still reports device, PCI, BAR, and power-management
@@ -75,23 +79,13 @@ Host-side build and unit tests are lightweight checks and do not require VM
 hardware:
 
 ```bash
-cmake -S src/telemetry -B /tmp/tt-metrics-exporter-build
-cmake --build /tmp/tt-metrics-exporter-build
-ctest --test-dir /tmp/tt-metrics-exporter-build --output-on-failure
-```
-
-When working from `src/telemetry` as a standalone checkout:
-
-```bash
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build --output-on-failure
+scripts/run-tests.py
 ```
 
 From inside the VM, print one scrape from the actual sysfs root:
 
 ```bash
-/tmp/tt-metrics-exporter-build/tt-metrics-exporter \
+PYTHONPATH=src python3 -m tt_metrics_exporter \
   --sysfs-root /sys/class/tenstorrent \
   --once
 ```
@@ -99,7 +93,7 @@ From inside the VM, print one scrape from the actual sysfs root:
 Print one structured device inventory:
 
 ```bash
-/tmp/tt-metrics-exporter-build/tt-metrics-exporter \
+PYTHONPATH=src python3 -m tt_metrics_exporter \
   --sysfs-root /sys/class/tenstorrent \
   --once \
   --json
@@ -108,8 +102,13 @@ Print one structured device inventory:
 Run the HTTP exporter from inside the VM:
 
 ```bash
-/tmp/tt-metrics-exporter-build/tt-metrics-exporter \
+PYTHONPATH=src python3 -m tt_metrics_exporter \
   --sysfs-root /sys/class/tenstorrent \
+  --max-snapshot-age 15 \
+  --shutdown-grace-period 10 \
+  --http-request-deadline 2 \
+  --log-format text \
+  --log-level info \
   --port 9400
 ```
 
@@ -117,7 +116,7 @@ Include node-local DRA and janitor state when those agents write safe state
 files:
 
 ```bash
-/tmp/tt-metrics-exporter-build/tt-metrics-exporter \
+PYTHONPATH=src python3 -m tt_metrics_exporter \
   --sysfs-root /sys/class/tenstorrent \
   --allocation-state-root /var/lib/tt-device-plugin/allocations \
   --janitor-state-root /var/lib/tt-device-plugin/janitor \
@@ -132,10 +131,14 @@ publish its latest completed-program core footprint after a synchronized
 iteration:
 
 ```python
+import os
 import ttnn
 from metalium_profiler_publisher import MetaliumProfilerPublisher
 
-publisher = MetaliumProfilerPublisher(workload_id="default/model-worker-0")
+publisher = MetaliumProfilerPublisher(
+    state_root=os.environ["TT_METALIUM_PROFILER_STATE_ROOT"],
+    workload_id="default/model-worker-0",
+)
 
 # Run one or more TTNN operations, then sample from the same process.
 ttnn.synchronize_device(device)
@@ -149,7 +152,8 @@ export TT_METAL_DEVICE_PROFILER=1
 export TT_METAL_PROFILER_MID_RUN_DUMP=1
 export TT_METAL_PROFILER_CPP_POST_PROCESS=1
 export TT_METAL_PROFILER_DISABLE_DUMP_TO_FILES=1
-export TT_METALIUM_PROFILER_STATE_ROOT=/var/lib/tt-device-plugin/metalium-profiler
+# This path is the workload's isolated <pod-uid> mount, not the shared parent.
+export TT_METALIUM_PROFILER_STATE_ROOT=/var/run/tt-profiler-state
 ```
 
 Device profiling requires a profiler-enabled TT-Metalium source build. The
@@ -164,6 +168,7 @@ terminal:
 ```bash
 python integrations/ttnn/example_dynamic_workload.py \
   --state-root /var/lib/tt-device-plugin/metalium-profiler \
+  --pod-uid metalium-dynamic-example \
   --device-key 0 \
   --iterations 30 \
   --interval-seconds 1
@@ -186,6 +191,11 @@ exporter's sysfs directory name. It accepts a sysfs ID, PCI BDF, or character
 device basename. `TT_METAL_PROFILER_DISABLE_DUMP_TO_FILES=1` retains the
 in-process results while avoiding profiler CSV artifacts in the workload
 container.
+
+Production publication is best-effort and rate-bounded by default so telemetry
+failures do not terminate the workload. DRA must mount only the workload's v2
+subtree and delete it during Unprepare; see
+[`docs/info/STATE_INGESTION_SECURITY.md`](docs/info/STATE_INGESTION_SECURITY.md).
 
 Then scrape:
 

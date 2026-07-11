@@ -12,9 +12,10 @@ two outputs:
 - Prometheus exposition text for monitoring and alerting.
 - Structured JSON for inventory, debugging, and DRA-related consumers.
 
-The current node exporter is implemented in C++ with a small embedded HTTP
-server. Python is used only for the workload-side TTNN adapter; the current
-implementation does not use FastAPI.
+The production node exporter is implemented in Python. Starlette supplies the
+ASGI routes, Uvicorn supplies HTTP parsing and service lifecycle, Click owns
+command-line validation, and structlog provides structured rendering. Python
+is also used independently by the workload-side TTNN adapter.
 
 The implementation follows four important rules:
 
@@ -40,36 +41,52 @@ TTNN workload                   |                           +--> Prometheus rend
                                                                     |
                                       polling cache <---------------+
                                             |
-                                      embedded HTTP server
+                                      Starlette / Uvicorn
                                             |
-                         /metrics   /v1/devices   /healthz
+                    /metrics   /v1/devices   /healthz   /readyz
 ```
 
-The C++ exporter does not open a Tenstorrent device through TT-Metalium. It
+The exporter does not open a Tenstorrent device through TT-Metalium. It
 observes sysfs and state files, which avoids conflicting with the workload that
 owns the device.
+
+The source package is organized by dependency direction:
+
+```text
+tt_metrics_exporter/
+├── app/          CLI, lifecycle, HTTP, logging, readiness, and snapshots
+├── collection/   sysfs/state collection, secure I/O, and input parsers
+├── renderers/    Prometheus and JSON output adapters
+├── models.py     shared telemetry and diagnostic contracts
+└── __init__.py   small public library facade
+```
+
+`app` coordinates the other layers. Collection and rendering share only the
+domain models and do not depend on application lifecycle code.
 
 ## 1. Application entry point and polling loop
 
 Files:
 
-- `src/main.cpp`
+- `src/tt_metrics_exporter/app/cli.py`
 
-The `tt-metrics-exporter` executable begins in `main.cpp`. It performs the
+The `tt-metrics-exporter` console entry point begins in `cli.py`. It performs the
 following work:
 
 1. Parses command-line options.
 2. Builds a `CollectorConfig` and creates a `SysfsCollector`.
 3. Performs an initial collection.
-4. Renders and caches both Prometheus and JSON output.
+4. Renders both representations and atomically publishes one immutable
+   generation containing the collection summary, Prometheus, and JSON output.
 5. Starts a background polling thread.
 6. Starts the HTTP server in the main thread.
 7. Handles `SIGINT` and `SIGTERM` for an orderly shutdown.
 
 The default polling interval is five seconds. Collection and rendering happen
-outside the cache mutex. The completed Prometheus and JSON strings are swapped
-into the cache while holding the mutex, so an HTTP request sees a complete old
-or complete new snapshot rather than a partially updated response.
+before publication. One immutable shared snapshot is atomically exchanged, so
+Prometheus and JSON always describe the same complete old or new generation.
+A failed refresh retains the previous complete payload while runtime failure
+counters and readiness continue to update.
 
 The executable also supports a one-shot mode:
 
@@ -92,14 +109,26 @@ Important options include:
   15 seconds.
 - `--collect-pcie-counters`: enables optional PCIe counter reads.
 - `--listen-address`, `--port`, and `--poll-interval`: server controls.
+- `--max-snapshot-age`: readiness freshness bound; it must be greater than the
+  polling interval.
+- `--require-device`: require at least one discovered device for readiness.
+- `--shutdown-grace-period`: hard upper bound for graceful termination.
+- `--http-workers` and `--http-queue-depth`: bound accepted connections;
+  defaults allow four active requests and 64 queued connections.
+- `--http-request-deadline`: initial-request deadline; defaults to two seconds.
+- `--maximum-rendered-payload-bytes`: per-representation publication bound.
+
+`SIGINT` and `SIGTERM` begin coordinated shutdown. Shutdown marks readiness
+false, closes the listener and active client sockets, stops the poller, and
+joins all service threads within the configured grace period.
 
 ## 2. Shared telemetry data model
 
 Files:
 
-- `include/tt_metrics_exporter/device.hpp`
+- `src/tt_metrics_exporter/models.py`
 
-`device.hpp` defines the typed model shared by collection and rendering.
+`models.py` defines the typed model shared by collection and rendering.
 `DeviceTelemetry` is the top-level record for one discovered device. It groups:
 
 - Character-device identity.
@@ -116,8 +145,8 @@ Files:
 - Kubernetes allocation ownership.
 - Hardware janitor state.
 
-Most fields use `std::optional`. An absent value means no safe source reported
-it. Renderers preserve that distinction rather than filling in a guessed zero.
+Most fields use `None` for absence, meaning no safe source reported the value.
+Renderers preserve that distinction rather than filling in a guessed zero.
 
 `CollectorConfig` carries all input roots and feature switches into the
 collector.
@@ -126,11 +155,16 @@ collector.
 
 Files:
 
-- `src/device.cpp`
-- `include/tt_metrics_exporter/device.hpp`
+- `src/tt_metrics_exporter/collection/collector.py`
+- `src/tt_metrics_exporter/collection/device_resources.py`
+- `src/tt_metrics_exporter/collection/sysfs_io.py`
+- `src/tt_metrics_exporter/collection/state.py`
+- `src/tt_metrics_exporter/collection/secure_io.py`
 
-`SysfsCollector::collect()` iterates the directories below the configured
-sysfs root. Each directory becomes one `DeviceTelemetry` record.
+`SysfsCollector.collect()` returns a `CollectionResult` containing devices,
+bounded per-source diagnostics, and critical-source status. It iterates the
+directories below the configured sysfs root; each directory becomes one
+`DeviceTelemetry` record.
 
 For every device, the collector attempts to read the following sources.
 
@@ -194,11 +228,17 @@ Collection is deliberately tolerant:
 This keeps the node exporter available even when a driver exposes only a
 partial telemetry surface.
 
+The configured sysfs root is the sole critical collection source. DRA,
+janitor, and profiler roots are optional when omitted; once configured, root
+unreadability is an operational error. An absent per-device optional file is
+still normal missing data. The complete endpoint and source semantics are in
+the [operational contract](../info/OPERATIONAL_CONTRACT.md).
+
 ## 4. DRA allocation-state reader
 
 Files:
 
-- `src/device.cpp`
+- `src/tt_metrics_exporter/collection/state.py`
 
 The exporter can enrich a device with Kubernetes ownership from a node-local
 state directory. It searches for a directory keyed by the device's sysfs ID,
@@ -220,7 +260,7 @@ writing these files. The telemetry exporter only reads them.
 
 Files:
 
-- `src/device.cpp`
+- `src/tt_metrics_exporter/collection/state.py`
 
 The janitor reader uses the same device-key matching approach as the allocation
 reader. It collects:
@@ -280,25 +320,32 @@ The publisher can obtain workload identity from explicit arguments or the
 
 ### Atomic state publication
 
-The default state root is:
+The node-visible trusted root is:
 
 ```text
 /var/lib/tt-device-plugin/metalium-profiler
 ```
 
-The layout is:
+The production layout is:
 
 ```text
-<state-root>/<device-key>/<safe-workload-name>.state
+<state-root>/v2/workloads/<pod-uid>/<device-key>/snapshot.state
 ```
 
-The publisher writes a temporary file, flushes and `fsync`s it, changes it to
+The trusted node service mounts only `<pod-uid>` into its workload and the
+publisher treats that scoped mount as its `state_root`. The publisher writes a
+temporary file, flushes and `fsync`s it, changes it to
 mode `0644`, atomically renames it over the target, and `fsync`s the directory.
 This prevents the exporter from reading a partially written sample.
 
 On a normal process exit, `close()` writes a final inactive sample with zero
 cores used. If the process is killed and cannot run cleanup, the exporter's
 freshness window eventually marks the last sample stale and inactive.
+
+Publication is best-effort by default: failures warn once and update bounded
+failure/last-success state without terminating the model. `strict=True` is
+available for tests and development. The full trust and cleanup contract is in
+[`STATE_INGESTION_SECURITY.md`](../info/STATE_INGESTION_SECURITY.md).
 
 ### What the profiler signal means
 
@@ -332,11 +379,11 @@ state root, workload ID, iteration count, and interval.
 
 Files:
 
-- `src/device.cpp`
+- `src/tt_metrics_exporter/collection/state.py`
 
-The C++ collector searches the configured profiler root using the sysfs device
-ID, PCI BDF, and character-device basename. It reads schema-version-1 `.state`
-files and validates required fields.
+The collector searches the configured profiler root using the sysfs device ID,
+PCI BDF, and character-device basename. It reads current v2 workload snapshots
+and legacy schema-version-1 migration inputs and validates required fields.
 
 Defensive limits include:
 
@@ -356,8 +403,7 @@ generic Tensix source is then identified as `metalium_profiler`.
 
 Files:
 
-- `src/metrics.cpp`
-- `include/tt_metrics_exporter/metrics.hpp`
+- `src/tt_metrics_exporter/renderers/prometheus.py`
 
 `render_prometheus()` converts a complete `DeviceTelemetry` snapshot to
 Prometheus text format. It emits `HELP` and `TYPE` metadata and escapes label
@@ -382,12 +428,14 @@ Metric families cover:
 Metrics that depend on an absent value are omitted. Information metrics use
 labels and a constant value of `1`.
 
+Metric names, labels, types, units, deprecation, occupancy semantics, and
+cardinality review follow [`METRIC_COMPATIBILITY.md`](../info/METRIC_COMPATIBILITY.md).
+
 ## 10. JSON renderer
 
 Files:
 
-- `src/json.cpp`
-- `include/tt_metrics_exporter/json.hpp`
+- `src/tt_metrics_exporter/renderers/json.py`
 
 `render_devices_json()` emits a versioned document:
 
@@ -400,19 +448,23 @@ Files:
 }
 ```
 
-Each device contains structured sections corresponding to the shared C++ data
-model. Optional values remain JSON `null` where appropriate, allowing a
+Each device contains structured sections corresponding to the shared Python
+data model. Optional values remain JSON `null` where appropriate, allowing a
 consumer to distinguish an unavailable measurement from an actual zero.
+Rendered fixtures are validated against the machine-readable
+[`telemetry.tenstorrent.com/v1` schema](../schema/telemetry.tenstorrent.com-v1.schema.json).
 
 ## 11. Embedded HTTP server
 
 Files:
 
-- `src/http_server.cpp`
-- `include/tt_metrics_exporter/http_server.hpp`
+- `src/tt_metrics_exporter/app/http.py`
+- `src/tt_metrics_exporter/app/runtime.py`
 
-The exporter contains a small IPv4 HTTP/1.1 server implemented with POSIX
-sockets. It serves cached strings supplied by callbacks from `main.cpp`.
+The exporter runs a small Starlette ASGI application under Uvicorn. A narrow
+protocol adapter preserves the exporter's connection cap, initial-request
+deadline, header limit, and connection counters. Handlers serve cached strings
+supplied by callbacks from `app/cli.py`.
 
 Endpoints are:
 
@@ -421,40 +473,54 @@ Endpoints are:
 - `GET /healthz`: process liveness response, `ok`.
 - Any other path: `404 Not Found`.
 
-The server processes one accepted connection at a time, closes each connection
-after its response, and uses a one-second `select()` timeout so shutdown signals
-are observed promptly. It does not currently implement TLS, authentication,
-HTTP keep-alive, request concurrency, or source-level readiness checks.
+The server has a bounded accepted-connection limit and initial-request
+deadline. Contract middleware enforces an 8 KiB header limit, accepts exact
+`GET` routes, ignores a query string for routing, rejects request bodies, and
+returns bounded `400`, `404`, `405`, or `431` responses. All responses include `Content-Length`,
+`Content-Type`, `Connection: close`, and `X-Content-Type-Options: nosniff`.
+
+Handlers only copy immutable cached payloads; they never collect sysfs.
+Connection saturation returns `503`, closes the excess connection, and
+increments a rejection counter.
+TLS and authentication remain outside the application trust boundary and must
+be supplied by Kubernetes NetworkPolicy or an authenticated TLS proxy for
+non-cluster exposure.
+
+### Structured logging
+
+Operational logs are written to standard error. `--log-format text|json` and
+`--log-level error|warn|info|debug` select the representation and threshold.
+JSON records always contain `timestamp`, `severity`, `event`, and `message`.
+Source/reason warnings use bounded values and a 60-second rate limit; state
+contents, workload identifiers, raw paths, and exception strings are never
+logged. Successful scrape details are metrics, while successful collection
+details appear only at `debug`.
 
 ## 12. Build and installation
 
 Files:
 
-- `CMakeLists.txt`
+- `pyproject.toml`
+- `Dockerfile`
 
-CMake builds a reusable C++ library containing collection, rendering, and HTTP
-logic, then links it into the `tt-metrics-exporter` executable.
-
-The install step places:
-
-- `tt-metrics-exporter` under the configured binary install directory.
-- The TTNN publisher and dynamic example under
-  `share/tt-metrics-exporter/integrations/ttnn`.
-
-Python is optional for building the C++ exporter. When a Python interpreter is
-available, CMake also registers the publisher unit tests with CTest.
+The Python package builds a pure-Python wheel and defines the
+`tt-metrics-exporter` console entry point. `uv.lock` locks development and
+runtime resolution; hashed requirements exports feed the container build. The
+multi-stage image runs pytest and Ruff, builds the wheel, and installs only
+runtime dependencies into a pinned distroless Python image.
 
 ## 13. Tests
 
 Files:
 
-- `tests/sysfs_collector_test.cpp`
+- `tests/python_collector_test.py`
+- `tests/python_renderer_test.py`
+- `tests/python_runtime_test.py`
 - `tests/metalium_profiler_publisher_test.py`
 
-The C++ test creates temporary sysfs and state trees. It verifies parsers,
-device collection, missing-root behavior, Prometheus output, JSON output,
-allocation and janitor state, Metalium aggregation, staleness, and invalid
-profiler records.
+Pytest tests create temporary sysfs and state trees. They verify parsers, collection,
+missing-root behavior, both output formats, state ingestion, runtime status,
+HTTP behavior, lifecycle, logging, staleness, and invalid profiler records.
 
 The Python test verifies atomic publication, inactive cleanup, empty reads,
 runtime-chip-to-exporter-device mapping, impossible core-count rejection, and
@@ -463,14 +529,12 @@ required profiler environment validation.
 Run all configured tests with:
 
 ```bash
-cmake -S src/telemetry -B /tmp/tt-metrics-exporter-build
-cmake --build /tmp/tt-metrics-exporter-build
-ctest --test-dir /tmp/tt-metrics-exporter-build --output-on-failure
+scripts/run-tests.py
 ```
 
 ## 14. Runtime and simulator boundary
 
-The C++ sysfs exporter can be validated in the QEMU guest after the official
+The Python sysfs exporter can be validated in the QEMU guest after the official
 TTSim PCI bridge enumerates the Wormhole device and compatible `tt-kmd` binds
 to it.
 
@@ -484,7 +548,7 @@ result:
 - Use compatible physical hardware for real TT-Metalium profiler samples.
 
 This distinction is important: an empty workload-profiler metric family in the
-current QEMU VM does not mean the C++ exporter failed. It means no compatible
+current QEMU VM does not mean the exporter failed. It means no compatible
 TTNN workload produced a profiler snapshot.
 
 ## 15. End-to-end lifecycle

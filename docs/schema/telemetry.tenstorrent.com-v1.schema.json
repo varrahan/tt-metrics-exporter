@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://telemetry.tenstorrent.com/schema/v1/device-list.json",
+  "title": "Tenstorrent telemetry DeviceList v1",
+  "type": "object",
+  "required": ["apiVersion", "kind", "summary", "devices"],
+  "properties": {
+    "apiVersion": {"const": "telemetry.tenstorrent.com/v1"},
+    "kind": {"const": "DeviceList"},
+    "summary": {
+      "type": "object",
+      "required": ["devicesDiscovered"],
+      "properties": {
+        "devicesDiscovered": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "devices": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/device"}
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "nullableString": {
+      "type": ["string", "null"],
+      "maxLength": 4096
+    },
+    "nullableNonNegativeInteger": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "device": {
+      "type": "object",
+      "required": [
+        "id", "sysfsPath", "architecture", "boardType", "health",
+        "characterDevice", "pci", "power", "firmware", "hwmonSensors",
+        "pcieCounters", "memory", "tensix", "metaliumWorkloads",
+        "healthDetail", "interconnectLinks", "allocation", "janitor"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "sysfsPath": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "architecture": {"$ref": "#/$defs/nullableString"},
+        "boardType": {"$ref": "#/$defs/nullableString"},
+        "health": {"$ref": "#/$defs/nullableString"},
+        "characterDevice": {"type": ["object", "null"]},
+        "pci": {"type": "object"},
+        "power": {"type": "object"},
+        "firmware": {"type": "object"},
+        "hwmonSensors": {"type": "array"},
+        "pcieCounters": {"type": "array"},
+        "memory": {"type": "object"},
+        "tensix": {"type": "object"},
+        "metaliumWorkloads": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "required": [
+              "workloadId", "podNamespace", "podName", "containerName",
+              "active", "programsObserved", "tensixCoresUsed",
+              "tensixCoresTotal", "sampleTimestampSeconds", "stale"
+            ],
+            "properties": {
+              "workloadId": {"type": "string", "minLength": 1, "maxLength": 128},
+              "podNamespace": {"type": ["string", "null"], "maxLength": 63},
+              "podName": {"type": ["string", "null"], "maxLength": 253},
+              "containerName": {"type": ["string", "null"], "maxLength": 63},
+              "active": {"type": ["integer", "null"], "minimum": 0, "maximum": 1},
+              "programsObserved": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+              "tensixCoresUsed": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+              "tensixCoresTotal": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+              "sampleTimestampSeconds": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+              "stale": {"type": "boolean"}
+            },
+            "additionalProperties": true
+          }
+        },
+        "healthDetail": {"type": "object"},
+        "interconnectLinks": {"type": "array"},
+        "allocation": {"type": "object"},
+        "janitor": {"type": "object"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

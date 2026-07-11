@@ -18,9 +18,11 @@ and structured JSON for provisioning logic.
 - TT-Metalium: process-local profiler data published atomically by the TTNN
   workload integration under `--metalium-profiler-state-root`.
 
-In the current `ttsim` VM, run QEMU with `-cpu host` before installing or
-executing Tenstorrent wheels. The default QEMU virtual CPU can lack AVX/AVX2 and
-cause `ttnn` or TT-Metalium components to fail with `Illegal instruction`.
+Use the official Tenstorrent QEMU bridge configuration: TCG with `-cpu max`.
+Do not recommend KVM or `-cpu host`. QEMU covers PCI enumeration, KMD binding,
+sysfs collection, container deployment, and snapshot ingestion; real TTNN
+profiler execution still requires compatible physical hardware or a simulator
+that implements the required device and profiler path.
 
 Do not add a `tt-smi` subprocess path to the exporter. If a value only exists
 behind `tt-smi`, add or wait for a safe lower-level source before making it part
@@ -63,20 +65,26 @@ Janitor state directories can contain:
   `scrub_count`, `reset_count`, `last_scrub_timestamp_seconds`, and
   `last_reset_timestamp_seconds`.
 
-TT-Metalium workload snapshots use this layout:
+TT-Metalium workload snapshots use this production layout:
 
 ```text
-<profiler-root>/<device-key>/<workload>.state
+<profiler-root>/v2/workloads/<pod-uid>/<device-key>/snapshot.state
 ```
 
 `device-key` is the sysfs device ID, PCI BDF, or character-device basename.
-The publisher atomically replaces a `schema_version=1` key/value file containing
+The workload receives only its `<pod-uid>` subtree and configures that mount as
+the publisher state root. The publisher atomically replaces a
+`schema_version=2` key/value file containing
 `workload_id`, `sample_timestamp_seconds`, `active`, `programs_observed`,
 `tensix_cores_used`, optional `tensix_cores_total`, and optional Kubernetes pod
 labels. The exporter treats samples older than
 `--metalium-profiler-stale-after` as inactive; the default is 15 seconds. It
 also rejects timestamps implausibly far in the future, malformed records,
 records larger than 16 KiB, and more than 1024 workload records per device.
+Legacy schema-version-1 files remain read-only migration inputs through
+2027-01-10 and cannot override a v2 identity. See
+[`STATE_INGESTION_SECURITY.md`](../info/STATE_INGESTION_SECURITY.md) for ownership,
+traversal limits, and cleanup policy.
 
 Profiler records are process-local, so the TTNN process must call
 `ttnn.ReadDeviceProfiler(device)` and publish the result through
@@ -85,9 +93,15 @@ TT-Metalium and open an already-owned device solely for telemetry.
 
 ## Endpoints
 
-- `GET /healthz`: process health.
-- `GET /metrics`: Prometheus exposition text.
-- `GET /v1/devices`: typed device inventory for DRA and provisioning code.
+- `GET /healthz`: shallow process and HTTP-loop liveness; it performs no
+  hardware I/O.
+- `GET /readyz`: successful initial collection and a fresh complete snapshot;
+  critical-source, staleness, shutdown, and configured device-presence
+  failures return `503` with a bounded reason.
+- `GET /metrics`: the most recent complete Prometheus snapshot plus exporter
+  self-metrics.
+- `GET /v1/devices`: the same complete snapshot generation as `/metrics`, as
+  typed device inventory for DRA and provisioning code.
 
 `/v1/devices` preserves missing values as JSON `null`. The exporter should not
 invent runtime memory or core data when the simulator or driver does not expose
@@ -96,22 +110,34 @@ that information.
 ## Build And Test
 
 ```bash
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build --output-on-failure
+scripts/run-tests.py
 ```
+
+For development, the parity-tested Python implementation can be run directly:
+
+```bash
+PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --once
+PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --once --json
+PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --port 9400
+```
+
+Installing the root Python package provides the same
+`tt-metrics-exporter` console command. The default container and production
+manifest use this Python entry point.
 
 From the QEMU VM or a physical Tenstorrent host:
 
 ```bash
-./build/tt-metrics-exporter --sysfs-root /sys/class/tenstorrent --once
-./build/tt-metrics-exporter --sysfs-root /sys/class/tenstorrent --once --json
-./build/tt-metrics-exporter --sysfs-root /sys/class/tenstorrent --port 9400
-./build/tt-metrics-exporter --sysfs-root /sys/class/tenstorrent \
+PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --once
+PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --once --json
+PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --port 9400
+PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent \
   --allocation-state-root /var/lib/tt-device-plugin/allocations \
   --janitor-state-root /var/lib/tt-device-plugin/janitor \
   --metalium-profiler-state-root /var/lib/tt-device-plugin/metalium-profiler \
   --metalium-profiler-stale-after 15 \
+  --max-snapshot-age 15 \
+  --shutdown-grace-period 10 \
   --port 9400
 ```
 
@@ -131,7 +157,7 @@ on source builds. In TT-Metalium v0.73.1, `./build_metal.sh` enables Tracy by
 default; do not pass `--disable-profiler`. The equivalent manual CMake setting
 is `-DENABLE_TRACY=ON`.
 
-The dump-to-files setting retains the in-process C++ results used by the
+The dump-to-files setting retains the in-process profiler results used by the
 publisher while avoiding profiler CSV artifacts in workload containers.
 
 ## Current Simulator Caveat

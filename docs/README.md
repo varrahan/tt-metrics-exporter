@@ -3,14 +3,14 @@
 This documentation is local to the telemetry exporter so `src/telemetry` can be
 split into a separate repository without depending on the root project docs.
 
-The exporter is a C++ node-local service for Tenstorrent hosts. It scans
+The exporter is a Python node-local service for Tenstorrent hosts. It scans
 `/sys/class/tenstorrent`, exposes Prometheus metrics at `/metrics`, and exposes
 typed DRA-friendly device data at `/v1/devices`.
 
 Runtime validation that depends on `tt-kmd`, `/sys/class/tenstorrent`,
 `/dev/tenstorrent`, Docker, `kind`, or TT-Metalium must run from the QEMU
 `ttsim` VM or a physical Tenstorrent host. Host-side checks are suitable for
-CMake builds and unit tests only.
+package builds and unit tests only.
 
 Do not use `tt-smi` as an exporter source. The exporter collects only from safe
 node-local sources: `tt-kmd` sysfs, backing PCI sysfs, `hwmon` when available,
@@ -27,6 +27,23 @@ path.
 
 See:
 
+- [OPERATIONAL_CONTRACT.md](info/OPERATIONAL_CONTRACT.md) for stable endpoint,
+  source-criticality, and validation semantics.
+- [STATE_INGESTION_SECURITY.md](info/STATE_INGESTION_SECURITY.md) for state-root
+  ownership, secure traversal, profiler isolation, and cleanup policy.
+- [METRIC_COMPATIBILITY.md](info/METRIC_COMPATIBILITY.md) and the
+  [v1 JSON Schema](schema/telemetry.tenstorrent.com-v1.schema.json) for stable
+  monitoring and API contracts.
+- [CONTAINER.md](info/CONTAINER.md) for reproducible image builds and final-image
+  security/lifecycle validation.
+- [KUBERNETES.md](info/KUBERNETES.md) for base/overlay deployment, monitoring,
+  NetworkPolicy, and cluster-validation boundaries.
+- [VERSIONING.md](VERSIONING.md) for release alignment and compatibility rules.
+- [runbooks](runbooks/exporter.md) for alert response and rollback guidance.
+- [decisions/0002-profiler-state-isolation.md](decisions/0002-profiler-state-isolation.md)
+  for the workload-isolated state and cleanup ownership decision.
+- [decisions/0003-prometheus-client-compatibility.md](decisions/0003-prometheus-client-compatibility.md)
+  for the decision to retain byte-compatible Prometheus exposition.
 - [HOW_IT_WORKS.md](guides/HOW_IT_WORKS.md) for the component architecture and
   end-to-end data flow.
 - [TT_METRICS_EXPORTER.md](guides/TT_METRICS_EXPORTER.md) for the build and
