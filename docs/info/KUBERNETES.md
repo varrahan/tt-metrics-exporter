@@ -3,15 +3,15 @@
 Render and validate the portable base and overlays with:
 
 ```bash
-scripts/validate-manifests.sh
-scripts/validate-monitoring.sh
+scripts/validation/manifests.sh
+scripts/validation/monitoring.sh
 ```
 
 With the locally built image, validate a rollout and undo on a disposable
 Kubernetes 1.34 Kind cluster:
 
 ```bash
-scripts/validate-kind-rollout.sh tt-metrics-exporter:python-local
+scripts/validation/kind_rollout.sh tt-metrics-exporter:python-local
 ```
 
 This host-side test uses a synthetic read-only sysfs directory. It proves image

@@ -513,10 +513,11 @@ runtime dependencies into a pinned distroless Python image.
 
 Files:
 
-- `tests/python_collector_test.py`
-- `tests/python_renderer_test.py`
-- `tests/python_runtime_test.py`
-- `tests/metalium_profiler_publisher_test.py`
+- `tests/unit/test_collector.py`
+- `tests/unit/test_renderers.py`
+- `tests/unit/test_runtime.py`
+- `tests/unit/test_profiler_publisher.py`
+- `tests/integration/`
 
 Pytest tests create temporary sysfs and state trees. They verify parsers, collection,
 missing-root behavior, both output formats, state ingestion, runtime status,
@@ -529,7 +530,7 @@ required profiler environment validation.
 Run all configured tests with:
 
 ```bash
-scripts/run-tests.py
+scripts/ci/run_tests.py
 ```
 
 ## 14. Runtime and simulator boundary

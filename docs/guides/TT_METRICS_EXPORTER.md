@@ -110,7 +110,7 @@ that information.
 ## Build And Test
 
 ```bash
-scripts/run-tests.py
+scripts/ci/run_tests.py
 ```
 
 For development, the parity-tested Python implementation can be run directly:

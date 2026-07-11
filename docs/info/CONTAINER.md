@@ -25,7 +25,7 @@ license label when the repository adopts a license.
 Validate the final image with:
 
 ```bash
-scripts/validate-image.sh tt-metrics-exporter:0.1.0 image-reports
+scripts/validation/image.sh tt-metrics-exporter:0.1.0 image-reports
 ```
 
 The validation checks metadata and non-root identity, rejects runtime shell,

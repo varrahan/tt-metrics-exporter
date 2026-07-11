@@ -79,7 +79,7 @@ Host-side build and unit tests are lightweight checks and do not require VM
 hardware:
 
 ```bash
-scripts/run-tests.py
+scripts/ci/run_tests.py
 ```
 
 From inside the VM, print one scrape from the actual sysfs root:
