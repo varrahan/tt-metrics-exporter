@@ -530,7 +530,10 @@ required profiler environment validation.
 Run all configured tests with:
 
 ```bash
-scripts/ci/run_tests.py
+uv sync --locked
+uv run scripts/ci/run_tests.py
+uv run ruff check src tests scripts
+uv run python scripts/ci/check_docs.py
 ```
 
 ## 14. Runtime and simulator boundary

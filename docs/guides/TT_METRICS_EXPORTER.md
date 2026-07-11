@@ -110,7 +110,11 @@ that information.
 ## Build And Test
 
 ```bash
-scripts/ci/run_tests.py
+uv sync --locked
+uv run scripts/ci/run_tests.py
+uv run ruff check src tests scripts
+uv run python -m build --wheel --no-isolation --outdir dist
+uv run python scripts/ci/check_docs.py
 ```
 
 For development, the parity-tested Python implementation can be run directly:
@@ -151,24 +155,20 @@ export TT_METAL_PROFILER_CPP_POST_PROCESS=1
 export TT_METAL_PROFILER_DISABLE_DUMP_TO_FILES=1
 ```
 
-The stock `ttnn==0.73.1` wheel currently installed in the QEMU VM is not built
-with Tracy support. Tenstorrent documents device profiling as fully supported
-on source builds. In TT-Metalium v0.73.1, `./build_metal.sh` enables Tracy by
-default; do not pass `--disable-profiler`. The equivalent manual CMake setting
-is `-DENABLE_TRACY=ON`.
+Verify that the TTNN/TT-Metalium build used by the workload includes Tracy
+support before enabling device profiling. A prebuilt wheel without profiler
+support will fail during initialization. For source builds, enable Tracy with
+the build system's profiler option (for example, `-DENABLE_TRACY=ON`) and
+follow the version-specific TT-Metalium build instructions.
 
 The dump-to-files setting retains the in-process profiler results used by the
 publisher while avoiding profiler CSV artifacts in workload containers.
 
-## Current Simulator Caveat
+## Simulator Caveat
 
-The v0.73.1 Tracy-enabled source build completes, but actual profiler reads are
-not supported by the current simulator stack. Opening the QEMU device through
-that source UMD terminates QEMU during topology discovery. Direct
-`libttsim_wh_v1.9.3.so` execution initializes the device and compiles a
-profiled kernel, but then fails with
-`UnsupportedFunctionality: noc_cmd_ctrl: write: noc_at_len_be=0` and returns no
-program records. Use compatible physical hardware or a TTSim release with the
-required profiler NoC behavior for end-to-end dynamic validation. The exporter
-and state contract can still be tested safely in the VM without opening the
+The QEMU simulator may support exporter sysfs and state-contract validation
+without supporting end-to-end TTNN profiler execution. If profiler reads are
+unsupported by the selected simulator/TT-Metalium combination, use compatible
+physical hardware or a simulator release with the required profiler behavior.
+The exporter and state contract can still be tested safely without opening the
 device.

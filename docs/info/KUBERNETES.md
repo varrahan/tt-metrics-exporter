@@ -37,8 +37,10 @@ artifact. The initial resource envelope is
 provisional until physical-hardware load and soak testing validates it.
 
 The optional monitoring package requires Prometheus Operator CRDs and supplies
-a 15-second ServiceMonitor, recording/alert rules, a bounded sample limit,
-dashboard, and linked runbooks. Clusters without the Operator can add their
+a 15-second ServiceMonitor, recording/alert rules, a bounded sample limit, and
+a dashboard. The alert annotations link to the exporter contracts in
+`docs/info/` rather than separate runbook documents. Clusters without the
+Operator can add their
 approved Prometheus pod annotations to the DaemonSet template and scrape the
 named `metrics` port at `/metrics`; those annotations are intentionally absent
 from the portable base.

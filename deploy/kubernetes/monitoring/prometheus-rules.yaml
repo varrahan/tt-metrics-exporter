@@ -25,7 +25,7 @@ spec:
           annotations:
             summary: Tenstorrent exporter target is absent
             description: Prometheus cannot scrape the node-local Tenstorrent exporter.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/exporter.md#target-absent
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
         - alert: TTExporterNotReady
           expr: tt_exporter_ready == 0
           for: 5m
@@ -33,7 +33,7 @@ spec:
           annotations:
             summary: Tenstorrent exporter is not ready
             description: The exporter has no current complete snapshot or a critical source failed.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/exporter.md#not-ready
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
         - alert: TTExporterCollectionStale
           expr: time() - tt_exporter_last_success_timestamp_seconds > 60
           for: 5m
@@ -41,7 +41,7 @@ spec:
           annotations:
             summary: Tenstorrent collection is stale
             description: The last complete node snapshot is more than 60 seconds old.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/exporter.md#stale-collection
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
         - alert: TTExporterCriticalSourceFailure
           expr: tt_exporter_source_accessible{source="sysfs_root"} == 0
           for: 5m
@@ -49,7 +49,7 @@ spec:
           annotations:
             summary: Tenstorrent sysfs source is inaccessible
             description: The exporter cannot access its configured critical sysfs root.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/exporter.md#critical-source
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
         - alert: TTExpectedDeviceMissing
           expr: tt_devices_discovered < 1
           for: 10m
@@ -57,7 +57,7 @@ spec:
           annotations:
             summary: Expected Tenstorrent device is missing
             description: No Tenstorrent device is present on a node selected for accelerator service.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/device-health.md#device-missing
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
         - alert: TTDeviceResetRequired
           expr: tt_health_reset_required == 1
           for: 2m
@@ -65,7 +65,7 @@ spec:
           annotations:
             summary: Tenstorrent device requires reset
             description: A safe device source reports that reset is required.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/device-health.md#reset-required
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
         - alert: TTDeviceQuarantined
           expr: tt_janitor_state_info{state="quarantined"} == 1
           for: 2m
@@ -73,7 +73,7 @@ spec:
           annotations:
             summary: Tenstorrent device is quarantined
             description: The hardware janitor has quarantined a device from workload use.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/device-health.md#quarantine
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/STATE_INGESTION_SECURITY.md#cleanup-ownership
         - alert: TTDeviceFaultCounterIncreasing
           expr: increase(tt_health_oom_faults_total[10m]) > 0 or increase(tt_health_hang_faults_total[10m]) > 0
           for: 2m
@@ -81,7 +81,7 @@ spec:
           annotations:
             summary: Tenstorrent device fault counter increased
             description: A device reported a new out-of-memory or hang event.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/device-health.md#fault-counters
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
         - alert: TTFirmwareHeartbeatStopped
           expr: changes(tt_firmware_heartbeat_total[5m]) == 0
           for: 5m
@@ -89,7 +89,7 @@ spec:
           annotations:
             summary: Tenstorrent firmware heartbeat stopped
             description: A supported firmware heartbeat has not advanced for five minutes.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/device-health.md#heartbeat
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
         - alert: TTProfilerRecordsRejected
           expr: increase(tt_exporter_collection_issues_total{source="metalium_profiler_state",reason!="stale_record"}[10m]) > 5
           for: 5m
@@ -97,7 +97,7 @@ spec:
           annotations:
             summary: Tenstorrent profiler records are repeatedly rejected
             description: The exporter rejected more than five profiler records in ten minutes.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/profiler.md#rejected-records
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/STATE_INGESTION_SECURITY.md#profiler-layout-and-migration
         - alert: TTProfilerCardinalityHigh
           expr: count by (cluster, node, device) (tt_metalium_workload_active) > 900
           for: 10m
@@ -105,7 +105,7 @@ spec:
           annotations:
             summary: Tenstorrent profiler cardinality is near its limit
             description: More than 900 workload series are active for one device.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/profiler.md#cardinality
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/STATE_INGESTION_SECURITY.md#profiler-layout-and-migration
         - alert: TTExporterHTTPRejections
           expr: increase(tt_exporter_http_connections_rejected_total[10m]) > 0
           for: 5m
@@ -113,7 +113,7 @@ spec:
           annotations:
             summary: Tenstorrent exporter rejected HTTP connections
             description: The bounded HTTP queue rejected one or more connections.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/http.md#rejections
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
         - alert: TTExporterHTTPFailures
           expr: increase(tt_exporter_http_requests_total{code_class="5xx"}[10m]) > 5
           for: 5m
@@ -121,4 +121,4 @@ spec:
           annotations:
             summary: Tenstorrent exporter is returning HTTP failures
             description: More than five exporter requests returned 5xx in ten minutes.
-            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/runbooks/http.md#failures
+            runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics

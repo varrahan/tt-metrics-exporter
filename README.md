@@ -79,7 +79,11 @@ Host-side build and unit tests are lightweight checks and do not require VM
 hardware:
 
 ```bash
-scripts/ci/run_tests.py
+uv sync --locked
+uv run scripts/ci/run_tests.py
+uv run ruff check src tests scripts
+uv run python -m build --wheel --no-isolation --outdir dist
+uv run python scripts/ci/check_docs.py
 ```
 
 From inside the VM, print one scrape from the actual sysfs root:
@@ -156,11 +160,12 @@ export TT_METAL_PROFILER_DISABLE_DUMP_TO_FILES=1
 export TT_METALIUM_PROFILER_STATE_ROOT=/var/run/tt-profiler-state
 ```
 
-Device profiling requires a profiler-enabled TT-Metalium source build. The
-current `ttnn==0.73.1` wheel installed in the QEMU VM is not Tracy-enabled and
-fails fast if `TT_METAL_DEVICE_PROFILER=1` is used. For TT-Metalium v0.73.1,
-`./build_metal.sh` enables Tracy by default; do not pass `--disable-profiler`.
-The equivalent manual CMake setting is `-DENABLE_TRACY=ON`.
+Device profiling requires a profiler-enabled TT-Metalium source build. Verify
+that the TTNN/TT-Metalium build used by the workload includes Tracy support
+before setting `TT_METAL_DEVICE_PROFILER=1`; a prebuilt wheel without profiler
+support will fail during initialization. For source builds, enable Tracy with
+the build system's profiler option (for example, `-DENABLE_TRACY=ON`) and
+follow the version-specific TT-Metalium build instructions.
 
 With that source build active, run the included dynamic workload in one VM
 terminal:
