@@ -17,8 +17,8 @@ Current implementation scope:
 - Read documented `tt-kmd` firmware telemetry files such as `tt_card_type`,
   `tt_aiclk`, `tt_heartbeat`, firmware versions, ASIC ID, and thermal trip
   count when ARC firmware exposes those attributes.
-- Read Tenstorrent `hwmon` sensor inputs when the driver registers a hwmon
-  device under the Tenstorrent sysfs node.
+- Optionally read Tenstorrent `hwmon` sensor inputs with `--collect-hwmon`
+  when the driver and environment have been validated for safe sensor reads.
 - Expose Linux character-device identity from `dev` and `uevent`.
 - Expose PCI BDF, bound driver, identity, class, NUMA node, IOMMU group, link
   speed/width, reset method, and non-empty PCI resource ranges from the backing
@@ -68,10 +68,11 @@ that case the exporter still reports device, PCI, BAR, and power-management
 metadata, while firmware, hwmon, live memory, and Tensix-utilization metrics
 remain empty.
 
-PCIe performance counter files under `pcie_perf_counters/` are available behind
-`--collect-pcie-counters`. They are disabled by default because the current
-`ttsim` VM disconnected while reading one of those simulator sysfs files
-directly.
+`hwmon` inputs and PCIe performance counters are explicit opt-ins through
+`--collect-hwmon` and `--collect-pcie-counters`. They are disabled by default
+because the current `ttsim` bridge has unsafe or incomplete implementations of
+both interfaces. The production physical-hardware manifest enables `hwmon`;
+enable either source elsewhere only after validating that environment.
 
 ## Build And Test
 

@@ -24,6 +24,11 @@ Missing optional firmware, `hwmon`, memory, core, topology, or link attributes
 do not make the exporter unready. Unsupported values remain absent rather than
 being synthesized as zero.
 
+Potentially side-effecting sysfs families are explicit opt-ins. `hwmon` reads
+require `--collect-hwmon`, and PCIe performance counters require
+`--collect-pcie-counters`. The production physical-hardware deployment enables
+only the sources qualified for that platform.
+
 ## Source policy
 
 The bounded collection sources are:

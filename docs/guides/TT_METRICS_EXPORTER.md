@@ -6,7 +6,7 @@ and structured JSON for provisioning logic.
 
 ## Runtime Sources
 
-- `/sys/class/tenstorrent`: device discovery, firmware attributes, hwmon,
+- `/sys/class/tenstorrent`: device discovery, firmware attributes, optional hwmon,
   runtime power state, PCI identity, PCIe link state, IOMMU group, reset method,
   PCI resources, actual memory/core/topology fields when exposed, and optional
   simulator counters.
@@ -31,6 +31,11 @@ of runtime collection.
 Do not synthesize capacity from an internal card-spec table. The exporter should
 report capacity, usage, topology, and performance values only when a safe source
 actually exposes them.
+
+Potentially side-effecting sources are opt-in. Use `--collect-hwmon` only on a
+qualified physical platform; it is intentionally absent from the `ttsim`
+overlay. PCIe performance counters follow the same policy through
+`--collect-pcie-counters`.
 
 ## Actual Value File Contract
 

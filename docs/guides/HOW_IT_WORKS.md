@@ -13,8 +13,8 @@ two outputs:
 - Structured JSON for inventory, debugging, and DRA-related consumers.
 
 The production node exporter is implemented in Python. Starlette supplies the
-ASGI routes, Uvicorn supplies HTTP parsing and service lifecycle, Click owns
-command-line validation, and structlog provides structured rendering. Python
+ASGI routes, Uvicorn supplies HTTP parsing and service lifecycle, and Click
+owns command-line validation. Logging uses the Python standard library. Python
 is also used independently by the workload-side TTNN adapter.
 
 The implementation follows four important rules:
@@ -107,6 +107,7 @@ Important options include:
 - `--metalium-profiler-state-root`: optional workload profiler state.
 - `--metalium-profiler-stale-after`: profiler freshness window; defaults to
   15 seconds.
+- `--collect-hwmon`: enables optional hardware-monitor sensor reads.
 - `--collect-pcie-counters`: enables optional PCIe counter reads.
 - `--listen-address`, `--port`, and `--poll-interval`: server controls.
 - `--max-snapshot-age`: readiness freshness bound; it must be greater than the
@@ -195,9 +196,11 @@ heartbeat, thermal-trip count, and firmware versions when `tt-kmd` exposes
 them. A firmware card type takes precedence over a less authoritative generic
 board-type file.
 
-The `hwmon` collector scans input files, associates labels when present, and
-assigns units based on the sensor family. Missing or unreadable sensors are
-skipped.
+When `--collect-hwmon` is enabled, the `hwmon` collector scans input files,
+associates labels when present, and assigns units based on the sensor family.
+It is disabled by default because simulator-backed sensor reads may have side
+effects. The physical-hardware production manifest enables it after platform
+qualification. Missing or unreadable sensors are skipped.
 
 ### Power and optional PCIe counters
 
