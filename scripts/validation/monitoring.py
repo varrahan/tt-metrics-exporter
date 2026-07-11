@@ -19,12 +19,7 @@ def main() -> None:
     assert 0 < endpoint["sampleLimit"] <= 20000
 
     rule_resource = next(doc for doc in documents if doc["kind"] == "PrometheusRule")
-    alerts = [
-        rule
-        for group in rule_resource["spec"]["groups"]
-        for rule in group["rules"]
-        if "alert" in rule
-    ]
+    alerts = [rule for group in rule_resource["spec"]["groups"] for rule in group["rules"] if "alert" in rule]
     assert len(alerts) >= 12
     for alert in alerts:
         assert alert.get("for")
@@ -32,9 +27,7 @@ def main() -> None:
         assert {"summary", "description", "runbook_url"} <= alert["annotations"].keys()
     rules_output.write_text(yaml.safe_dump({"groups": rule_resource["spec"]["groups"]}))
 
-    dashboard = json.loads(
-        Path("deploy/kubernetes/monitoring/dashboard.json").read_text()
-    )
+    dashboard = json.loads(Path("deploy/kubernetes/monitoring/dashboard.json").read_text())
     titles = {panel["title"] for panel in dashboard["panels"]}
     assert len(titles) >= 14
     required = {

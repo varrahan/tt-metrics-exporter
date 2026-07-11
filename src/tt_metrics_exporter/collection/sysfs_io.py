@@ -34,9 +34,7 @@ class SysfsReader:
             diagnostics.issues[CollectionIssue.PERMISSION_DENIED] += 1
             return None
         except OSError as error:
-            issue = (CollectionIssue.PERMISSION_DENIED
-                     if error.errno in {errno.EACCES, errno.EPERM}
-                     else CollectionIssue.READ_FAILED)
+            issue = CollectionIssue.PERMISSION_DENIED if error.errno in {errno.EACCES, errno.EPERM} else CollectionIssue.READ_FAILED
             diagnostics.issues[issue] += 1
             return None
         if len(content) > _MAXIMUM_SYSFS_FILE_BYTES:
@@ -53,17 +51,14 @@ class SysfsReader:
             return None
         return value
 
-    def _read_first(self, root: Path, names: tuple[str, ...],
-                    diagnostics: SourceDiagnostics,
-                    reader: Callable[[Path, SourceDiagnostics], _Value | None]) -> _Value | None:
+    def _read_first(self, root: Path, names: tuple[str, ...], diagnostics: SourceDiagnostics, reader: Callable[[Path, SourceDiagnostics], _Value | None]) -> _Value | None:
         for name in names:
             value = reader(root / name, diagnostics)
             if value is not None:
                 return value
         return None
 
-    def _read_first_text(self, root: Path, names: tuple[str, ...],
-                         diagnostics: SourceDiagnostics) -> str | None:
+    def _read_first_text(self, root: Path, names: tuple[str, ...], diagnostics: SourceDiagnostics) -> str | None:
         return self._read_first(root, names, diagnostics, self._read_text)
 
     def _read_int(self, path: Path, diagnostics: SourceDiagnostics) -> int | None:
@@ -75,8 +70,7 @@ class SysfsReader:
     def _read_boolish(self, path: Path, diagnostics: SourceDiagnostics) -> int | None:
         return self._parse(path, diagnostics, parse_boolish_int)
 
-    def _parse(self, path: Path, diagnostics: SourceDiagnostics,
-               parser: Callable[[str], int | None]) -> int | None:
+    def _parse(self, path: Path, diagnostics: SourceDiagnostics, parser: Callable[[str], int | None]) -> int | None:
         value = self._read_text(path, diagnostics)
         if value is None:
             return None
@@ -85,12 +79,10 @@ class SysfsReader:
             diagnostics.issues[CollectionIssue.INVALID_VALUE] += 1
         return parsed
 
-    def _read_first_int(self, root: Path, names: tuple[str, ...],
-                        diagnostics: SourceDiagnostics) -> int | None:
+    def _read_first_int(self, root: Path, names: tuple[str, ...], diagnostics: SourceDiagnostics) -> int | None:
         return self._read_first(root, names, diagnostics, self._read_int)
 
-    def _read_first_boolish(self, root: Path, names: tuple[str, ...],
-                            diagnostics: SourceDiagnostics) -> int | None:
+    def _read_first_boolish(self, root: Path, names: tuple[str, ...], diagnostics: SourceDiagnostics) -> int | None:
         return self._read_first(root, names, diagnostics, self._read_boolish)
 
     def _read_byte(self, path: Path, diagnostics: SourceDiagnostics) -> int | None:
@@ -105,6 +97,5 @@ class SysfsReader:
             diagnostics.issues[CollectionIssue.INVALID_VALUE] += 1
         return parsed
 
-    def _read_first_byte(self, root: Path, names: tuple[str, ...],
-                         diagnostics: SourceDiagnostics) -> int | None:
+    def _read_first_byte(self, root: Path, names: tuple[str, ...], diagnostics: SourceDiagnostics) -> int | None:
         return self._read_first(root, names, diagnostics, self._read_byte)

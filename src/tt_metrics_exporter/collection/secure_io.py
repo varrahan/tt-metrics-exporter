@@ -15,22 +15,11 @@ def valid_component(value: str, maximum_bytes: int = 128) -> bool:
         encoded = value.encode("ascii")
     except UnicodeEncodeError:
         return False
-    return (
-        bool(value)
-        and len(encoded) <= maximum_bytes
-        and value not in {".", ".."}
-        and "/" not in value
-        and "\0" not in value
-        and all(0x21 <= byte <= 0x7E for byte in encoded)
-    )
+    return bool(value) and len(encoded) <= maximum_bytes and value not in {".", ".."} and "/" not in value and "\0" not in value and all(0x21 <= byte <= 0x7E for byte in encoded)
 
 
 def _record_os_error(error: OSError, diagnostics: SourceDiagnostics) -> None:
-    issue = (
-        CollectionIssue.PERMISSION_DENIED
-        if error.errno in {errno.EACCES, errno.EPERM}
-        else CollectionIssue.READ_FAILED
-    )
+    issue = CollectionIssue.PERMISSION_DENIED if error.errno in {errno.EACCES, errno.EPERM} else CollectionIssue.READ_FAILED
     diagnostics.issues[issue] += 1
 
 
@@ -41,22 +30,14 @@ class SecureDirectory:
         self._descriptor = descriptor
 
     @classmethod
-    def open_root(
-        cls, path: Path, diagnostics: SourceDiagnostics
-    ) -> SecureDirectory | None:
+    def open_root(cls, path: Path, diagnostics: SourceDiagnostics) -> SecureDirectory | None:
         try:
             descriptor = os.open(
                 path,
                 os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW,
             )
         except OSError as error:
-            issue = (
-                CollectionIssue.MISSING_ROOT
-                if error.errno in {errno.ENOENT, errno.ENOTDIR}
-                else CollectionIssue.PERMISSION_DENIED
-                if error.errno in {errno.EACCES, errno.EPERM}
-                else CollectionIssue.READ_FAILED
-            )
+            issue = CollectionIssue.MISSING_ROOT if error.errno in {errno.ENOENT, errno.ENOTDIR} else CollectionIssue.PERMISSION_DENIED if error.errno in {errno.EACCES, errno.EPERM} else CollectionIssue.READ_FAILED
             diagnostics.issues[issue] += 1
             diagnostics.accessible = False
             return None
@@ -74,9 +55,7 @@ class SecureDirectory:
     def __exit__(self, *_unused: object) -> None:
         self.close()
 
-    def open_directory(
-        self, component: str, diagnostics: SourceDiagnostics
-    ) -> SecureDirectory | None:
+    def open_directory(self, component: str, diagnostics: SourceDiagnostics) -> SecureDirectory | None:
         if not valid_component(component):
             diagnostics.issues[CollectionIssue.INVALID_VALUE] += 1
             return None
@@ -148,9 +127,7 @@ class SecureDirectory:
             return None
         return value
 
-    def entries(
-        self, maximum_entries: int, diagnostics: SourceDiagnostics
-    ) -> list[str]:
+    def entries(self, maximum_entries: int, diagnostics: SourceDiagnostics) -> list[str]:
         try:
             names = os.listdir(self._descriptor)
         except OSError as error:

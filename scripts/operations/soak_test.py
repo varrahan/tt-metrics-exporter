@@ -54,10 +54,7 @@ def main() -> None:
     deadline = time.monotonic() + args.duration_seconds
     while time.monotonic() < deadline:
         results: list[tuple[float, int, str]] = []
-        workers = [
-            threading.Thread(target=scrape, args=(args.endpoint, results))
-            for _ in range(args.concurrency)
-        ]
+        workers = [threading.Thread(target=scrape, args=(args.endpoint, results)) for _ in range(args.concurrency)]
         for worker in workers:
             worker.start()
         for worker in workers:
@@ -95,11 +92,7 @@ def main() -> None:
         "maximum_scrape_seconds": max(row["maximum_scrape_seconds"] for row in rows),
     }
     args.output.with_suffix(".json").write_text(json.dumps(summary, indent=2) + "\n")
-    if (
-        summary["rss_growth_bytes"] > args.maximum_rss_growth_bytes
-        or summary["thread_growth"] > 2
-        or summary["descriptor_growth"] > 2
-    ):
+    if summary["rss_growth_bytes"] > args.maximum_rss_growth_bytes or summary["thread_growth"] > 2 or summary["descriptor_growth"] > 2:
         raise SystemExit("sustained resource growth exceeded the soak budget")
 
 

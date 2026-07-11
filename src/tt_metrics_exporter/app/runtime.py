@@ -67,22 +67,13 @@ class RuntimeStatus:
         self._successes = self._failures = self._consecutive_failures = 0
         self._generation = self._device_count = 0
         self._shutting_down = False
-        self._sources = {
-            source: SourceDiagnostics(source=source) for source in TelemetrySource
-        }
-        self._issue_totals = {
-            source: {issue: 0 for issue in CollectionIssue}
-            for source in TelemetrySource
-        }
-        self._http_requests = {
-            route: {code: 0 for code in ("2xx", "4xx", "5xx")}
-            for route in HttpRoute
-        }
+        self._sources = {source: SourceDiagnostics(source=source) for source in TelemetrySource}
+        self._issue_totals = {source: {issue: 0 for issue in CollectionIssue} for source in TelemetrySource}
+        self._http_requests = {route: {code: 0 for code in ("2xx", "4xx", "5xx")} for route in HttpRoute}
         self._http_durations = {route: 0.0 for route in HttpRoute}
         self._active_connections = self._rejected_connections = 0
 
-    def record_collection(self, result: CollectionResult, duration: float,
-                          snapshot_published: bool, generation: int) -> None:
+    def record_collection(self, result: CollectionResult, duration: float, snapshot_published: bool, generation: int) -> None:
         steady_now, wall_now = self._monotonic(), self._wall_time()
         with self._lock:
             self._last_collection_duration = duration
@@ -99,8 +90,7 @@ class RuntimeStatus:
                 self._failures += 1
                 self._consecutive_failures += 1
 
-    def record_http_request(self, route: HttpRoute, status_code: int,
-                            duration: float) -> None:
+    def record_http_request(self, route: HttpRoute, status_code: int, duration: float) -> None:
         code = "5xx" if status_code >= 500 else "4xx" if status_code >= 400 else "2xx"
         with self._lock:
             self._http_requests[route][code] += 1
@@ -142,14 +132,16 @@ class RuntimeStatus:
 
     def snapshot(self) -> RuntimeStatusSnapshot:
         with self._lock:
-            totals = {
-                issue: sum(source[issue] for source in self._issue_totals.values())
-                for issue in CollectionIssue
-            }
+            totals = {issue: sum(source[issue] for source in self._issue_totals.values()) for issue in CollectionIssue}
             return RuntimeStatusSnapshot(
-                self._successes + self._failures, self._successes, self._failures,
-                self._consecutive_failures, self._generation, self._device_count,
-                self._shutting_down, totals,
+                self._successes + self._failures,
+                self._successes,
+                self._failures,
+                self._consecutive_failures,
+                self._generation,
+                self._device_count,
+                self._shutting_down,
+                totals,
             )
 
     @staticmethod
@@ -194,10 +186,7 @@ class RuntimeStatus:
                 "# HELP tt_exporter_collection_issues_total Collection issues by bounded source and reason.",
                 "# TYPE tt_exporter_collection_issues_total counter",
             ]
-            lines += [
-                f'tt_exporter_collection_issues_total{{source="{source.value}",reason="{issue.value}"}} {self._issue_totals[source][issue]}'
-                for source in TelemetrySource for issue in CollectionIssue
-            ]
+            lines += [f'tt_exporter_collection_issues_total{{source="{source.value}",reason="{issue.value}"}} {self._issue_totals[source][issue]}' for source in TelemetrySource for issue in CollectionIssue]
             lines += [
                 "# HELP tt_exporter_state_records Current state records by source and status.",
                 "# TYPE tt_exporter_state_records gauge",
@@ -213,10 +202,7 @@ class RuntimeStatus:
                 "# HELP tt_exporter_http_requests_total HTTP requests by bounded route and status class.",
                 "# TYPE tt_exporter_http_requests_total counter",
             ]
-            lines += [
-                f'tt_exporter_http_requests_total{{route="{route.value}",code_class="{code}"}} {self._http_requests[route][code]}'
-                for route in HttpRoute for code in ("2xx", "4xx", "5xx")
-            ]
+            lines += [f'tt_exporter_http_requests_total{{route="{route.value}",code_class="{code}"}} {self._http_requests[route][code]}' for route in HttpRoute for code in ("2xx", "4xx", "5xx")]
             lines += [
                 "# HELP tt_exporter_http_request_duration_seconds Last HTTP request duration by route.",
                 "# TYPE tt_exporter_http_request_duration_seconds gauge",

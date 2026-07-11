@@ -38,11 +38,7 @@ def _bounded_label(value: str | None, maximum: int, required: bool = False) -> b
         encoded = value.encode("ascii")
     except UnicodeEncodeError:
         return False
-    return (
-        bool(value)
-        and len(encoded) <= maximum
-        and all(0x20 <= byte <= 0x7E for byte in encoded)
-    )
+    return bool(value) and len(encoded) <= maximum and all(0x20 <= byte <= 0x7E for byte in encoded)
 
 
 def _parse_key_values(content: str) -> dict[str, str] | None:
@@ -52,9 +48,7 @@ def _parse_key_values(content: str) -> dict[str, str] | None:
     for line in content.splitlines():
         if "=" not in line:
             continue
-        key, value = (
-            part.strip(" \t\n\r\v\f") for part in line.split("=", 1)
-        )
+        key, value = (part.strip(" \t\n\r\v\f") for part in line.split("=", 1))
         if not key:
             continue
         if len(values) >= _MAXIMUM_STATE_FIELDS or key in values:
@@ -137,10 +131,7 @@ class StateIngestor:
         candidates = [device.id]
         if device.pci.bdf is not None:
             candidates.append(device.pci.bdf)
-        if (
-            device.character_device is not None
-            and device.character_device.dev_name is not None
-        ):
+        if device.character_device is not None and device.character_device.dev_name is not None:
             candidates.append(Path(device.character_device.dev_name).name)
         return [candidate for candidate in candidates if valid_component(candidate)]
 
@@ -157,67 +148,37 @@ class StateIngestor:
         return None
 
     @staticmethod
-    def _validate_label(
-        value: str | None, maximum: int, diagnostics: SourceDiagnostics
-    ) -> str | None:
+    def _validate_label(value: str | None, maximum: int, diagnostics: SourceDiagnostics) -> str | None:
         if value is not None and not _bounded_label(value, maximum):
             diagnostics.issues[CollectionIssue.INVALID_VALUE] += 1
             return None
         return value
 
-    def _read_allocation(
-        self, device: DeviceTelemetry, root: SecureDirectory
-    ) -> AllocationTelemetry:
+    def _read_allocation(self, device: DeviceTelemetry, root: SecureDirectory) -> AllocationTelemetry:
         diagnostics = self._result.sources[TelemetrySource.ALLOCATION_STATE]
         directory = self._first_device_directory(root, device, diagnostics)
         if directory is None:
             return AllocationTelemetry()
         with directory:
             allocation = AllocationTelemetry(
-                claim_namespace=directory.read_text(
-                    "claim_namespace", _MAXIMUM_NAMESPACE_BYTES, diagnostics
-                ),
-                claim_name=directory.read_text(
-                    "claim_name", _MAXIMUM_POD_NAME_BYTES, diagnostics
-                ),
-                claim_uid=directory.read_text(
-                    "claim_uid", _MAXIMUM_WORKLOAD_ID_BYTES, diagnostics
-                ),
-                pod_namespace=directory.read_text(
-                    "pod_namespace", _MAXIMUM_NAMESPACE_BYTES, diagnostics
-                ),
-                pod_name=directory.read_text(
-                    "pod_name", _MAXIMUM_POD_NAME_BYTES, diagnostics
-                ),
-                container_name=directory.read_text(
-                    "container_name", _MAXIMUM_CONTAINER_NAME_BYTES, diagnostics
-                ),
+                claim_namespace=directory.read_text("claim_namespace", _MAXIMUM_NAMESPACE_BYTES, diagnostics),
+                claim_name=directory.read_text("claim_name", _MAXIMUM_POD_NAME_BYTES, diagnostics),
+                claim_uid=directory.read_text("claim_uid", _MAXIMUM_WORKLOAD_ID_BYTES, diagnostics),
+                pod_namespace=directory.read_text("pod_namespace", _MAXIMUM_NAMESPACE_BYTES, diagnostics),
+                pod_name=directory.read_text("pod_name", _MAXIMUM_POD_NAME_BYTES, diagnostics),
+                container_name=directory.read_text("container_name", _MAXIMUM_CONTAINER_NAME_BYTES, diagnostics),
             )
-        allocation.claim_namespace = self._validate_label(
-            allocation.claim_namespace, _MAXIMUM_NAMESPACE_BYTES, diagnostics
-        )
-        allocation.claim_name = self._validate_label(
-            allocation.claim_name, _MAXIMUM_POD_NAME_BYTES, diagnostics
-        )
-        allocation.claim_uid = self._validate_label(
-            allocation.claim_uid, _MAXIMUM_WORKLOAD_ID_BYTES, diagnostics
-        )
-        allocation.pod_namespace = self._validate_label(
-            allocation.pod_namespace, _MAXIMUM_NAMESPACE_BYTES, diagnostics
-        )
-        allocation.pod_name = self._validate_label(
-            allocation.pod_name, _MAXIMUM_POD_NAME_BYTES, diagnostics
-        )
-        allocation.container_name = self._validate_label(
-            allocation.container_name, _MAXIMUM_CONTAINER_NAME_BYTES, diagnostics
-        )
+        allocation.claim_namespace = self._validate_label(allocation.claim_namespace, _MAXIMUM_NAMESPACE_BYTES, diagnostics)
+        allocation.claim_name = self._validate_label(allocation.claim_name, _MAXIMUM_POD_NAME_BYTES, diagnostics)
+        allocation.claim_uid = self._validate_label(allocation.claim_uid, _MAXIMUM_WORKLOAD_ID_BYTES, diagnostics)
+        allocation.pod_namespace = self._validate_label(allocation.pod_namespace, _MAXIMUM_NAMESPACE_BYTES, diagnostics)
+        allocation.pod_name = self._validate_label(allocation.pod_name, _MAXIMUM_POD_NAME_BYTES, diagnostics)
+        allocation.container_name = self._validate_label(allocation.container_name, _MAXIMUM_CONTAINER_NAME_BYTES, diagnostics)
         diagnostics.records_accepted += 1
         return allocation
 
     @staticmethod
-    def _read_state_int(
-        directory: SecureDirectory, name: str, diagnostics: SourceDiagnostics
-    ) -> int | None:
+    def _read_state_int(directory: SecureDirectory, name: str, diagnostics: SourceDiagnostics) -> int | None:
         value = directory.read_text(name, _MAXIMUM_STATE_FILE_BYTES, diagnostics)
         if value is None:
             return None
@@ -226,9 +187,7 @@ class StateIngestor:
             diagnostics.issues[CollectionIssue.INVALID_VALUE] += 1
         return parsed
 
-    def _read_janitor(
-        self, device: DeviceTelemetry, root: SecureDirectory
-    ) -> JanitorTelemetry:
+    def _read_janitor(self, device: DeviceTelemetry, root: SecureDirectory) -> JanitorTelemetry:
         diagnostics = self._result.sources[TelemetrySource.JANITOR_STATE]
         directory = self._first_device_directory(root, device, diagnostics)
         if directory is None:
@@ -236,27 +195,13 @@ class StateIngestor:
         with directory:
             janitor = JanitorTelemetry(
                 state=directory.read_text("state", 128, diagnostics),
-                quarantine_reason=directory.read_text(
-                    "quarantine_reason", 256, diagnostics
-                ),
-                last_scrub_status=directory.read_text(
-                    "last_scrub_status", 128, diagnostics
-                ),
-                last_reset_status=directory.read_text(
-                    "last_reset_status", 128, diagnostics
-                ),
-                scrub_count=self._read_state_int(
-                    directory, "scrub_count", diagnostics
-                ),
-                reset_count=self._read_state_int(
-                    directory, "reset_count", diagnostics
-                ),
-                last_scrub_timestamp_seconds=self._read_state_int(
-                    directory, "last_scrub_timestamp_seconds", diagnostics
-                ),
-                last_reset_timestamp_seconds=self._read_state_int(
-                    directory, "last_reset_timestamp_seconds", diagnostics
-                ),
+                quarantine_reason=directory.read_text("quarantine_reason", 256, diagnostics),
+                last_scrub_status=directory.read_text("last_scrub_status", 128, diagnostics),
+                last_reset_status=directory.read_text("last_reset_status", 128, diagnostics),
+                scrub_count=self._read_state_int(directory, "scrub_count", diagnostics),
+                reset_count=self._read_state_int(directory, "reset_count", diagnostics),
+                last_scrub_timestamp_seconds=self._read_state_int(directory, "last_scrub_timestamp_seconds", diagnostics),
+                last_reset_timestamp_seconds=self._read_state_int(directory, "last_reset_timestamp_seconds", diagnostics),
             )
         for attribute, maximum in (
             ("state", 128),
@@ -267,16 +212,12 @@ class StateIngestor:
             setattr(
                 janitor,
                 attribute,
-                self._validate_label(
-                    getattr(janitor, attribute), maximum, diagnostics
-                ),
+                self._validate_label(getattr(janitor, attribute), maximum, diagnostics),
             )
         diagnostics.records_accepted += 1
         return janitor
 
-    def _parse_workload(
-        self, content: str, expected_schema: int, diagnostics: SourceDiagnostics
-    ) -> MetaliumWorkloadTelemetry | None:
+    def _parse_workload(self, content: str, expected_schema: int, diagnostics: SourceDiagnostics) -> MetaliumWorkloadTelemetry | None:
         values = _parse_key_values(content)
         if values is None:
             diagnostics.issues[CollectionIssue.INVALID_VALUE] += 1
@@ -291,54 +232,22 @@ class StateIngestor:
             container_name=_state_string(values, "container_name"),
             active=_state_non_negative_int(values, "active"),
             programs_observed=_state_non_negative_int(values, "programs_observed"),
-            tensix_cores_used=_state_non_negative_int(
-                values, "tensix_cores_used"
-            ),
-            tensix_cores_total=_state_non_negative_int(
-                values, "tensix_cores_total"
-            ),
-            sample_timestamp_seconds=_state_non_negative_int(
-                values, "sample_timestamp_seconds"
-            ),
+            tensix_cores_used=_state_non_negative_int(values, "tensix_cores_used"),
+            tensix_cores_total=_state_non_negative_int(values, "tensix_cores_total"),
+            sample_timestamp_seconds=_state_non_negative_int(values, "sample_timestamp_seconds"),
         )
-        invalid = (
-            not _bounded_label(
-                workload.workload_id, _MAXIMUM_WORKLOAD_ID_BYTES, required=True
-            )
-            or not _bounded_label(workload.pod_namespace, _MAXIMUM_NAMESPACE_BYTES)
-            or not _bounded_label(workload.pod_name, _MAXIMUM_POD_NAME_BYTES)
-            or not _bounded_label(
-                workload.container_name, _MAXIMUM_CONTAINER_NAME_BYTES
-            )
-            or workload.active is None
-            or workload.active > 1
-            or workload.programs_observed is None
-            or workload.tensix_cores_used is None
-            or workload.sample_timestamp_seconds is None
-            or (
-                workload.tensix_cores_total is not None
-                and (
-                    workload.tensix_cores_total == 0
-                    or workload.tensix_cores_used > workload.tensix_cores_total
-                )
-            )
-        )
+        invalid = not _bounded_label(workload.workload_id, _MAXIMUM_WORKLOAD_ID_BYTES, required=True) or not _bounded_label(workload.pod_namespace, _MAXIMUM_NAMESPACE_BYTES) or not _bounded_label(workload.pod_name, _MAXIMUM_POD_NAME_BYTES) or not _bounded_label(workload.container_name, _MAXIMUM_CONTAINER_NAME_BYTES) or workload.active is None or workload.active > 1 or workload.programs_observed is None or workload.tensix_cores_used is None or workload.sample_timestamp_seconds is None or (workload.tensix_cores_total is not None and (workload.tensix_cores_total == 0 or workload.tensix_cores_used > workload.tensix_cores_total))
         if invalid:
             diagnostics.issues[CollectionIssue.INVALID_VALUE] += 1
             return None
         now = self._now_seconds()
-        workload.stale = self._stale_after_seconds > 0 and (
-            workload.sample_timestamp_seconds < now - self._stale_after_seconds
-            or workload.sample_timestamp_seconds > now + self._stale_after_seconds
-        )
+        workload.stale = self._stale_after_seconds > 0 and (workload.sample_timestamp_seconds < now - self._stale_after_seconds or workload.sample_timestamp_seconds > now + self._stale_after_seconds)
         if workload.stale:
             diagnostics.issues[CollectionIssue.STALE_RECORD] += 1
         diagnostics.records_accepted += 1
         return workload
 
-    def _read_workloads(
-        self, device: DeviceTelemetry, root: SecureDirectory
-    ) -> list[MetaliumWorkloadTelemetry]:
+    def _read_workloads(self, device: DeviceTelemetry, root: SecureDirectory) -> list[MetaliumWorkloadTelemetry]:
         diagnostics = self._result.sources[TelemetrySource.METALIUM_PROFILER_STATE]
         workloads: list[MetaliumWorkloadTelemetry] = []
         v2_identities: set[str] = set()
@@ -363,16 +272,11 @@ class StateIngestor:
                 for filename in v1_device.entries(_MAXIMUM_STATE_FILES, diagnostics):
                     if len(filename) <= 6 or not filename.endswith(".state"):
                         continue
-                    content = v1_device.read_text(
-                        filename, _MAXIMUM_STATE_FILE_BYTES, diagnostics
-                    )
+                    content = v1_device.read_text(filename, _MAXIMUM_STATE_FILE_BYTES, diagnostics)
                     if content is None:
                         continue
                     workload = self._parse_workload(content, 1, diagnostics)
-                    if (
-                        workload is not None
-                        and workload.workload_id not in v2_identities
-                    ):
+                    if workload is not None and workload.workload_id not in v2_identities:
                         workloads.append(workload)
 
         workloads.sort(
@@ -411,15 +315,11 @@ class StateIngestor:
             if pod is None:
                 continue
             with pod:
-                device_directory = self._first_device_directory(
-                    pod, device, diagnostics
-                )
+                device_directory = self._first_device_directory(pod, device, diagnostics)
                 if device_directory is None:
                     continue
                 with device_directory:
-                    content = device_directory.read_text(
-                        "snapshot.state", _MAXIMUM_STATE_FILE_BYTES, diagnostics
-                    )
+                    content = device_directory.read_text("snapshot.state", _MAXIMUM_STATE_FILE_BYTES, diagnostics)
             if content is None:
                 continue
             workload = self._parse_workload(content, 2, diagnostics)
@@ -433,16 +333,8 @@ class StateIngestor:
         fresh = [workload for workload in device.metalium_workloads if not workload.stale]
         if not fresh:
             return
-        cores_used = sum(
-            workload.tensix_cores_used or 0
-            for workload in fresh
-            if workload.active
-        )
-        totals = [
-            workload.tensix_cores_total
-            for workload in fresh
-            if workload.tensix_cores_total is not None
-        ]
+        cores_used = sum(workload.tensix_cores_used or 0 for workload in fresh if workload.active)
+        totals = [workload.tensix_cores_total for workload in fresh if workload.tensix_cores_total is not None]
         cores_total = max(totals) if totals else None
         if cores_total is not None:
             cores_used = min(cores_used, cores_total)

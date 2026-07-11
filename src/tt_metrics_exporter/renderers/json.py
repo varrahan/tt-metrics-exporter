@@ -16,7 +16,9 @@ def _device(device: DeviceTelemetry) -> dict[str, Any]:
         "architecture": device.architecture,
         "boardType": device.board_type,
         "health": device.health,
-        "characterDevice": None if character is None else {
+        "characterDevice": None
+        if character is None
+        else {
             "major": character.major,
             "minor": character.minor,
             "name": character.dev_name,
@@ -38,10 +40,16 @@ def _device(device: DeviceTelemetry) -> dict[str, Any]:
             "maxLinkSpeed": device.pci.max_link_speed,
             "maxLinkWidth": device.pci.max_link_width,
             "resetMethod": device.pci.reset_method,
-            "resources": [{
-                "index": item.index, "start": item.start, "end": item.end,
-                "flags": item.flags, "sizeBytes": item.size_bytes,
-            } for item in device.pci_resources],
+            "resources": [
+                {
+                    "index": item.index,
+                    "start": item.start,
+                    "end": item.end,
+                    "flags": item.flags,
+                    "sizeBytes": item.size_bytes,
+                }
+                for item in device.pci_resources
+            ],
         },
         "power": {
             "runtimeStatus": device.power.runtime_status,
@@ -69,11 +77,8 @@ def _device(device: DeviceTelemetry) -> dict[str, Any]:
             "ethFwVersion": device.firmware.eth_fw_version,
             "ttflashVersion": device.firmware.ttflash_version,
         },
-        "hwmonSensors": [{"name": item.name, "label": item.label,
-                           "unit": item.unit, "value": item.value}
-                          for item in device.hwmon_sensors],
-        "pcieCounters": [{"name": item.name, "value": item.value}
-                         for item in device.pcie_counters],
+        "hwmonSensors": [{"name": item.name, "label": item.label, "unit": item.unit, "value": item.value} for item in device.hwmon_sensors],
+        "pcieCounters": [{"name": item.name, "value": item.value} for item in device.pcie_counters],
         "memory": {
             "usedBytes": device.memory.used_bytes,
             "totalBytes": device.memory.total_bytes,
@@ -87,20 +92,30 @@ def _device(device: DeviceTelemetry) -> dict[str, Any]:
             "channelCount": device.memory.channel_count,
         },
         "tensix": {
-            "used": device.tensix.used, "available": device.tensix.available,
-            "total": device.tensix.total, "meshRows": device.tensix.mesh_rows,
-            "meshCols": device.tensix.mesh_cols, "topology": device.tensix.topology,
-            "activeRegions": device.tensix.active_regions, "source": device.tensix.source,
+            "used": device.tensix.used,
+            "available": device.tensix.available,
+            "total": device.tensix.total,
+            "meshRows": device.tensix.mesh_rows,
+            "meshCols": device.tensix.mesh_cols,
+            "topology": device.tensix.topology,
+            "activeRegions": device.tensix.active_regions,
+            "source": device.tensix.source,
         },
-        "metaliumWorkloads": [{
-            "workloadId": item.workload_id, "podNamespace": item.pod_namespace,
-            "podName": item.pod_name, "containerName": item.container_name,
-            "active": item.active, "programsObserved": item.programs_observed,
-            "tensixCoresUsed": item.tensix_cores_used,
-            "tensixCoresTotal": item.tensix_cores_total,
-            "sampleTimestampSeconds": item.sample_timestamp_seconds,
-            "stale": item.stale,
-        } for item in device.metalium_workloads],
+        "metaliumWorkloads": [
+            {
+                "workloadId": item.workload_id,
+                "podNamespace": item.pod_namespace,
+                "podName": item.pod_name,
+                "containerName": item.container_name,
+                "active": item.active,
+                "programsObserved": item.programs_observed,
+                "tensixCoresUsed": item.tensix_cores_used,
+                "tensixCoresTotal": item.tensix_cores_total,
+                "sampleTimestampSeconds": item.sample_timestamp_seconds,
+                "stale": item.stale,
+            }
+            for item in device.metalium_workloads
+        ],
         "healthDetail": {
             "faultCode": device.health_detail.fault_code,
             "faultReason": device.health_detail.fault_reason,
@@ -108,10 +123,17 @@ def _device(device: DeviceTelemetry) -> dict[str, Any]:
             "oomFaultCount": device.health_detail.oom_fault_count,
             "hangFaultCount": device.health_detail.hang_fault_count,
         },
-        "interconnectLinks": [{
-            "name": item.name, "type": item.type, "state": item.state,
-            "peer": item.peer, "speedGbps": item.speed_gbps, "ringId": item.ring_id,
-        } for item in device.interconnect_links],
+        "interconnectLinks": [
+            {
+                "name": item.name,
+                "type": item.type,
+                "state": item.state,
+                "peer": item.peer,
+                "speedGbps": item.speed_gbps,
+                "ringId": item.ring_id,
+            }
+            for item in device.interconnect_links
+        ],
         "allocation": {
             "claimNamespace": device.allocation.claim_namespace,
             "claimName": device.allocation.claim_name,
@@ -141,6 +163,4 @@ def render_devices_json(devices: list[DeviceTelemetry]) -> str:
         "summary": {"devicesDiscovered": len(devices)},
         "devices": [_device(device) for device in devices],
     }
-    return json_module.dumps(
-        document, ensure_ascii=False, allow_nan=False, separators=(",", ":")
-    ) + "\n"
+    return json_module.dumps(document, ensure_ascii=False, allow_nan=False, separators=(",", ":")) + "\n"

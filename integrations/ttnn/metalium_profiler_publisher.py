@@ -73,18 +73,8 @@ class MetaliumProfilerPublisher:
         minimum_sample_interval_seconds: float = 1.0,
         warning_callback: Optional[Callable[[str], None]] = None,
     ) -> None:
-        self.state_root = Path(
-            state_root
-            or os.environ.get("TT_METALIUM_PROFILER_STATE_ROOT")
-            or "/var/lib/tt-device-plugin/metalium-profiler"
-        )
-        self.workload_id = (
-            workload_id
-            or os.environ.get("TT_WORKLOAD_ID")
-            or os.environ.get("POD_UID")
-            or os.environ.get("POD_NAME")
-            or f"{socket.gethostname()}-{os.getpid()}"
-        )
+        self.state_root = Path(state_root or os.environ.get("TT_METALIUM_PROFILER_STATE_ROOT") or "/var/lib/tt-device-plugin/metalium-profiler")
+        self.workload_id = workload_id or os.environ.get("TT_WORKLOAD_ID") or os.environ.get("POD_UID") or os.environ.get("POD_NAME") or f"{socket.gethostname()}-{os.getpid()}"
         self.pod_namespace = pod_namespace or os.environ.get("POD_NAMESPACE")
         self.pod_name = pod_name or os.environ.get("POD_NAME")
         self.container_name = container_name or os.environ.get("CONTAINER_NAME")
@@ -97,10 +87,7 @@ class MetaliumProfilerPublisher:
         self.minimum_sample_interval_seconds = minimum_sample_interval_seconds
         self._warning_callback = warning_callback or logging.getLogger(__name__).warning
         self.device_keys = tuple(str(device_key) for device_key in device_keys)
-        self.device_key_map = {
-            str(chip_id): str(device_key)
-            for chip_id, device_key in (device_key_map or {}).items()
-        }
+        self.device_key_map = {str(chip_id): str(device_key) for chip_id, device_key in (device_key_map or {}).items()}
         self._known_totals: dict[str, int] = {}
         self._published_device_keys: set[str] = set()
         self._lock = threading.Lock()
@@ -118,10 +105,7 @@ class MetaliumProfilerPublisher:
         missing = [name for name in _REQUIRED_PROFILER_ENV if os.environ.get(name) != "1"]
         if missing:
             joined = ", ".join(missing)
-            raise RuntimeError(
-                f"TT-Metalium profiling requires these variables to equal 1 before "
-                f"TTNN initializes: {joined}"
-            )
+            raise RuntimeError(f"TT-Metalium profiling requires these variables to equal 1 before TTNN initializes: {joined}")
 
     def sample(self, device: object) -> Mapping[str, Mapping[str, int]]:
         """Read the latest process-local profiler data and publish it.
@@ -134,11 +118,7 @@ class MetaliumProfilerPublisher:
         if self._disabled:
             return {}
         now = time.monotonic()
-        if (
-            self._last_sample_monotonic is not None
-            and now - self._last_sample_monotonic
-            < self.minimum_sample_interval_seconds
-        ):
+        if self._last_sample_monotonic is not None and now - self._last_sample_monotonic < self.minimum_sample_interval_seconds:
             return {}
         self._last_sample_monotonic = now
         try:
@@ -146,18 +126,14 @@ class MetaliumProfilerPublisher:
             import ttnn  # Imported only after the profiler environment is validated.
 
             ttnn.ReadDeviceProfiler(device)
-            return self._publish_profiler_data(
-                ttnn.get_latest_programs_perf_data()
-            )
+            return self._publish_profiler_data(ttnn.get_latest_programs_perf_data())
         except Exception as error:  # Telemetry must not terminate model execution.
             self._handle_failure(error, disable=isinstance(error, RuntimeError))
             if self.strict:
                 raise
             return {}
 
-    def publish_profiler_data(
-        self, profiler_data: Mapping[object, Iterable[object]]
-    ) -> Mapping[str, Mapping[str, int]]:
+    def publish_profiler_data(self, profiler_data: Mapping[object, Iterable[object]]) -> Mapping[str, Mapping[str, int]]:
         """Publish already-read records; separated for testing and adapters."""
 
         if self._disabled:
@@ -170,9 +146,7 @@ class MetaliumProfilerPublisher:
                 raise
             return {}
 
-    def _publish_profiler_data(
-        self, profiler_data: Mapping[object, Iterable[object]]
-    ) -> Mapping[str, Mapping[str, int]]:
+    def _publish_profiler_data(self, profiler_data: Mapping[object, Iterable[object]]) -> Mapping[str, Mapping[str, int]]:
         summaries: dict[str, dict[str, int]] = {}
         seen_device_keys: set[str] = set()
 
@@ -180,24 +154,13 @@ class MetaliumProfilerPublisher:
             device_key = self.device_key_map.get(str(chip_id), str(chip_id))
             records = list(records_iterable)
             seen_device_keys.add(device_key)
-            core_counts = [
-                _non_negative_int(record.core_count, "core_count") for record in records
-            ]
-            core_totals = [
-                _non_negative_int(record.num_available_cores, "num_available_cores")
-                for record in records
-            ]
+            core_counts = [_non_negative_int(record.core_count, "core_count") for record in records]
+            core_totals = [_non_negative_int(record.num_available_cores, "num_available_cores") for record in records]
             cores_used = max(core_counts, default=0)
             if core_totals:
                 self._known_totals[device_key] = max(core_totals)
-            if (
-                device_key in self._known_totals
-                and cores_used > self._known_totals[device_key]
-            ):
-                raise ValueError(
-                    f"core_count {cores_used} exceeds num_available_cores "
-                    f"{self._known_totals[device_key]} for device {device_key}"
-                )
+            if device_key in self._known_totals and cores_used > self._known_totals[device_key]:
+                raise ValueError(f"core_count {cores_used} exceeds num_available_cores {self._known_totals[device_key]} for device {device_key}")
             summary = self._summary(device_key, int(bool(records)), len(records), cores_used)
             self._publish(device_key, summary)
             summaries[device_key] = summary
@@ -213,9 +176,7 @@ class MetaliumProfilerPublisher:
         self.last_success_timestamp = time.time()
         return summaries
 
-    def _summary(
-        self, device_key: str, active: int = 0, programs: int = 0, cores: int = 0
-    ) -> dict[str, int]:
+    def _summary(self, device_key: str, active: int = 0, programs: int = 0, cores: int = 0) -> dict[str, int]:
         summary = {
             "active": active,
             "programs_observed": programs,
@@ -231,9 +192,7 @@ class MetaliumProfilerPublisher:
         if disable:
             self._disabled = True
         if not self._warned:
-            self._warning_callback(
-                "TT-Metalium telemetry publication disabled or degraded"
-            )
+            self._warning_callback("TT-Metalium telemetry publication disabled or degraded")
             self._warned = True
 
     def close(self) -> None:
@@ -249,17 +208,13 @@ class MetaliumProfilerPublisher:
 
         for device_key in device_keys:
             try:
-                self._publish(
-                    device_key, self._summary(device_key), allow_closed=True
-                )
+                self._publish(device_key, self._summary(device_key), allow_closed=True)
             except Exception as error:
                 self._handle_failure(error)
                 if self.strict:
                     raise
 
-    def _publish(
-        self, device_key: str, summary: Mapping[str, int], *, allow_closed: bool = False
-    ) -> None:
+    def _publish(self, device_key: str, summary: Mapping[str, int], *, allow_closed: bool = False) -> None:
         if not device_key or device_key in {".", ".."} or "/" in device_key:
             raise ValueError(f"invalid device key: {device_key!r}")
 
@@ -270,14 +225,8 @@ class MetaliumProfilerPublisher:
 
             state_dir = self.state_root / device_key
             state_dir.mkdir(parents=True, exist_ok=True)
-            target = (
-                state_dir / "snapshot.state"
-                if self.layout_version == 2
-                else state_dir / f"{_safe_component(self.workload_id)}.state"
-            )
-            temporary = target.with_name(
-                f".{target.name}.{os.getpid()}.{threading.get_ident()}.tmp"
-            )
+            target = state_dir / "snapshot.state" if self.layout_version == 2 else state_dir / f"{_safe_component(self.workload_id)}.state"
+            temporary = target.with_name(f".{target.name}.{os.getpid()}.{threading.get_ident()}.tmp")
 
             fields: list[tuple[str, object]] = [
                 ("schema_version", self.layout_version),

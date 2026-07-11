@@ -12,8 +12,6 @@ from ..models import CollectionResult
 @dataclass(frozen=True, slots=True)
 class ExporterSnapshot:
     generation: int
-    collected_at: float
-    rendered_at: float
     collection: CollectionResult
     prometheus: str
     devices_json: str
@@ -28,14 +26,14 @@ class SnapshotStore:
         with self._lock:
             return self._snapshot
 
-    def publish(self, collection: CollectionResult, prometheus: str,
-                devices_json: str, collected_at: float,
-                rendered_at: float) -> ExporterSnapshot:
+    def publish(
+        self,
+        collection: CollectionResult,
+        prometheus: str,
+        devices_json: str,
+    ) -> ExporterSnapshot:
         with self._lock:
             generation = 1 if self._snapshot is None else self._snapshot.generation + 1
-            snapshot = ExporterSnapshot(
-                generation, collected_at, rendered_at, deepcopy(collection),
-                prometheus, devices_json,
-            )
+            snapshot = ExporterSnapshot(generation, deepcopy(collection), prometheus, devices_json)
             self._snapshot = snapshot
             return snapshot

@@ -37,9 +37,7 @@ def main() -> None:
     assert "rbac.authorization.k8s.io" not in manifest.read_text()
 
     container = pod["containers"][0]
-    implementation = daemonset["spec"]["template"]["metadata"]["labels"][
-        "telemetry.tenstorrent.com/implementation"
-    ]
+    implementation = daemonset["spec"]["template"]["metadata"]["labels"]["telemetry.tenstorrent.com/implementation"]
     assert implementation == "python"
     container_security = container["securityContext"]
     assert container_security["allowPrivilegeEscalation"] is False
@@ -63,12 +61,14 @@ def main() -> None:
     args = container["args"]
     if environment == "production":
         assert "--require-device" in args
+        assert "--collect-hwmon" in args
         assert {"--allocation-state-root", "--janitor-state-root", "--metalium-profiler-state-root"} <= set(args)
         assert pod["nodeSelector"]["tenstorrent.com/accelerator"] == "true"
         assert re.fullmatch(r".+@sha256:[0-9a-f]{64}", container["image"])
         assert not container["image"].endswith("0" * 64)
     elif environment == "ttsim":
         assert "--require-device" not in args
+        assert "--collect-hwmon" not in args
         assert pod["nodeSelector"]["tenstorrent.com/ttsim"] == "true"
 
 

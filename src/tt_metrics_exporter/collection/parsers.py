@@ -11,9 +11,7 @@ from ..models import MemoryUsage, PciResource
 _UINT64_MAX = (1 << 64) - 1
 _INT64_MIN = -(1 << 63)
 _INT64_MAX = (1 << 63) - 1
-_NUMBER_PREFIX = re.compile(
-    r"^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?"
-)
+_NUMBER_PREFIX = re.compile(r"^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?")
 _BYTE_MULTIPLIERS = {
     "": 1,
     "b": 1,
@@ -37,13 +35,7 @@ _BYTE_MULTIPLIERS = {
 def tokenize(value: str) -> list[str]:
     """Match the exporter's ASCII sysfs tokenization rules."""
 
-    normalized = "".join(
-        character
-        if (character.isascii() and character.isalnum())
-        or character in "._-"
-        else " "
-        for character in value
-    )
+    normalized = "".join(character if (character.isascii() and character.isalnum()) or character in "._-" else " " for character in value)
     return normalized.split()
 
 
@@ -58,7 +50,7 @@ def parse_byte_value(token: str, next_token: str = "") -> int | None:
     if not value.is_finite() or value < 0:
         return None
 
-    suffix = token[match.end():] or next_token
+    suffix = token[match.end() :] or next_token
     multiplier = _BYTE_MULTIPLIERS.get(suffix.lower())
     if multiplier is None:
         if match.end() != len(token):

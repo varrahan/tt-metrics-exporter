@@ -11,8 +11,6 @@ from threading import Lock
 import time
 from typing import Callable, TextIO
 
-import structlog
-
 
 class LogLevel(IntEnum):
     DEBUG = 0
@@ -29,59 +27,58 @@ def _bounded(value: object, maximum: int) -> str:
 
 
 class Logger:
-    def __init__(self, log_format: str = "text", minimum_level: LogLevel = LogLevel.INFO,
-                 output: TextIO = sys.stderr,
-                 monotonic: Callable[[], float] = time.monotonic,
-                 wall_time: Callable[[], float] = time.time) -> None:
+    def __init__(self, log_format: str = "text", minimum_level: LogLevel = LogLevel.INFO, output: TextIO = sys.stderr, monotonic: Callable[[], float] = time.monotonic, wall_time: Callable[[], float] = time.time) -> None:
         self._minimum, self._monotonic, self._wall_time = minimum_level, monotonic, wall_time
         self._lock, self._last_emitted = Lock(), {}
-        renderer = (
-            structlog.processors.JSONRenderer(
-                serializer=lambda value, **_: json.dumps(
-                    value, ensure_ascii=False, separators=(",", ":")
-                )
-            )
-            if log_format == "json" else self._render_text
-        )
-        self._logger = structlog.wrap_logger(
-            structlog.PrintLogger(output), processors=[self._contract_fields, renderer]
-        )
+        self._json = log_format == "json"
+        self._output = output
 
-    def _contract_fields(self, _: object, __: str,
-                         values: dict[str, object]) -> dict[str, object]:
+    def _record(
+        self,
+        level: LogLevel,
+        event: str,
+        message: str,
+        fields: dict[str, object] | None,
+    ) -> dict[str, object]:
         instant = datetime.fromtimestamp(self._wall_time(), timezone.utc)
         timestamp = instant.strftime("%Y-%m-%dT%H:%M:%S.") + f"{instant.microsecond // 1000:03d}Z"
         return {
             "timestamp": timestamp,
-            "severity": values.pop("severity"),
-            "event": _bounded(values.pop("event_name"), 64),
-            "message": _bounded(values.pop("event"), 512),
-            **{
-                name: _bounded(value, 256)
-                for name, value in values.items() if _FIELD.fullmatch(name)
-            },
+            "severity": level.name.lower(),
+            "event": _bounded(event, 64),
+            "message": _bounded(message, 512),
+            **{name: _bounded(value, 256) for name, value in (fields or {}).items() if _FIELD.fullmatch(name)},
         }
 
     @staticmethod
-    def _render_text(_: object, __: str, values: dict[str, object]) -> str:
+    def _render_text(values: dict[str, object]) -> str:
         def escape(value: object) -> str:
             return str(value).replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
 
-        head = " ".join(escape(values.pop(name)) for name in
-                        ("timestamp", "severity", "event", "message"))
-        return head + "".join(f" {name}={escape(value)}" for name, value in values.items())
+        contract_fields = ("timestamp", "severity", "event", "message")
+        head = " ".join(escape(values[name]) for name in contract_fields)
+        details = "".join(f" {name}={escape(value)}" for name, value in values.items() if name not in contract_fields)
+        return head + details
 
-    def log(self, level: LogLevel, event: str, message: str,
-            fields: dict[str, object] | None = None) -> None:
+    def _emit(
+        self,
+        level: LogLevel,
+        event: str,
+        message: str,
+        fields: dict[str, object] | None,
+    ) -> None:
+        record = self._record(level, event, message, fields)
+        line = json.dumps(record, ensure_ascii=False, separators=(",", ":")) if self._json else self._render_text(record)
+        self._output.write(line + "\n")
+        self._output.flush()
+
+    def log(self, level: LogLevel, event: str, message: str, fields: dict[str, object] | None = None) -> None:
         if level < self._minimum:
             return
         with self._lock:
-            self._logger.msg(message, severity=level.name.lower(), event_name=event,
-                             **(fields or {}))
+            self._emit(level, event, message, fields)
 
-    def log_rate_limited(self, level: LogLevel, event: str, message: str,
-                         bounded_key: str, interval: float = 60,
-                         fields: dict[str, object] | None = None) -> None:
+    def log_rate_limited(self, level: LogLevel, event: str, message: str, bounded_key: str, interval: float = 60, fields: dict[str, object] | None = None) -> None:
         if level < self._minimum or not 0 < len(bounded_key.encode()) <= 64:
             return
         now = self._monotonic()
@@ -92,5 +89,4 @@ class Logger:
             if previous is None and len(self._last_emitted) >= 64:
                 return
             self._last_emitted[bounded_key] = now
-            self._logger.msg(message, severity=level.name.lower(), event_name=event,
-                             **(fields or {}))
+            self._emit(level, event, message, fields)

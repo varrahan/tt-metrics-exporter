@@ -221,6 +221,7 @@ class CollectorConfig:
     janitor_state_root: Path | None = None
     metalium_profiler_state_root: Path | None = None
     metalium_profiler_stale_after_seconds: int = 15
+    collect_hwmon: bool = False
     collect_pcie_counters: bool = False
 
 
@@ -245,7 +246,5 @@ def _empty_sources() -> dict[TelemetrySource, SourceDiagnostics]:
 @dataclass(slots=True)
 class CollectionResult:
     devices: list[DeviceTelemetry] = field(default_factory=list)
-    sources: dict[TelemetrySource, SourceDiagnostics] = field(
-        default_factory=_empty_sources
-    )
+    sources: dict[TelemetrySource, SourceDiagnostics] = field(default_factory=_empty_sources)
     critical_sources_ok: bool = False
