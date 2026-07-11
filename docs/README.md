@@ -38,12 +38,6 @@ See:
   security/lifecycle validation.
 - [KUBERNETES.md](info/KUBERNETES.md) for base/overlay deployment, monitoring,
   NetworkPolicy, and cluster-validation boundaries.
-- [VERSIONING.md](VERSIONING.md) for release alignment and compatibility rules.
-- [runbooks](runbooks/exporter.md) for alert response and rollback guidance.
-- [decisions/0002-profiler-state-isolation.md](decisions/0002-profiler-state-isolation.md)
-  for the workload-isolated state and cleanup ownership decision.
-- [decisions/0003-prometheus-client-compatibility.md](decisions/0003-prometheus-client-compatibility.md)
-  for the decision to retain byte-compatible Prometheus exposition.
 - [HOW_IT_WORKS.md](guides/HOW_IT_WORKS.md) for the component architecture and
   end-to-end data flow.
 - [TT_METRICS_EXPORTER.md](guides/TT_METRICS_EXPORTER.md) for the build and
