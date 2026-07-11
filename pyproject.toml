@@ -12,7 +12,6 @@ license = {text = "NOASSERTION"}
 dependencies = [
     "click>=8.1,<9",
     "starlette>=0.47,<1",
-    "structlog>=25,<27",
     "uvicorn>=0.34,<1",
 ]
 
@@ -38,7 +37,7 @@ python_files = ["test_*.py"]
 testpaths = ["tests"]
 
 [tool.ruff]
-line-length = 100
+line-length = 10000
 target-version = "py310"
 
 [tool.ruff.lint]
