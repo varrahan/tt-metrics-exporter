@@ -23,6 +23,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--workload-id", default="metalium-dynamic-example")
     parser.add_argument(
+        "--pod-uid",
+        default=os.environ.get("POD_UID", "metalium-dynamic-example"),
+        help="Trusted workload-directory name used by the v2 validation layout",
+    )
+    parser.add_argument(
         "--device-key",
         help="Exporter device key (sysfs ID, PCI BDF, or character-device basename)",
     )
@@ -38,8 +43,11 @@ def main() -> int:
 
     device = ttnn.open_device(device_id=args.device_id)
     try:
+        if not args.pod_uid or args.pod_uid in {".", ".."} or "/" in args.pod_uid:
+            raise ValueError("--pod-uid must be one safe path component")
+        workload_state_root = args.state_root / "v2" / "workloads" / args.pod_uid
         with MetaliumProfilerPublisher(
-            args.state_root,
+            workload_state_root,
             args.workload_id,
             device_keys=(args.device_id,),
             device_key_map=(

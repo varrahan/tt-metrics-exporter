@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools==75.8.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tt-metalium-profiler-publisher"
+version = "0.1.0"
+description = "Workload-scoped TT-Metalium profiler state publisher"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "NOASSERTION"}
+
+[tool.setuptools]
+py-modules = ["metalium_profiler_publisher"]

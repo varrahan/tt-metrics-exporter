@@ -2,20 +2,21 @@
 
 TT-Metalium profiler records live in the workload process.  This module turns
 the latest records into a small, atomically replaced state file that the
-node-local C++ exporter can consume without loading TT-Metalium itself.
+node-local exporter can consume without loading TT-Metalium itself.
 """
 
 from __future__ import annotations
 
 import atexit
 import hashlib
+import logging
 import os
 from pathlib import Path
 import re
 import socket
 import threading
 import time
-from typing import Iterable, Mapping, Optional, Sequence
+from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 
 _REQUIRED_PROFILER_ENV = (
@@ -23,6 +24,8 @@ _REQUIRED_PROFILER_ENV = (
     "TT_METAL_PROFILER_MID_RUN_DUMP",
     "TT_METAL_PROFILER_CPP_POST_PROCESS",
 )
+
+__version__ = "0.1.0"
 
 
 def _safe_component(value: str) -> str:
@@ -65,6 +68,10 @@ class MetaliumProfilerPublisher:
         pod_namespace: Optional[str] = None,
         pod_name: Optional[str] = None,
         container_name: Optional[str] = None,
+        layout_version: int = 2,
+        strict: bool = False,
+        minimum_sample_interval_seconds: float = 1.0,
+        warning_callback: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.state_root = Path(
             state_root
@@ -81,6 +88,14 @@ class MetaliumProfilerPublisher:
         self.pod_namespace = pod_namespace or os.environ.get("POD_NAMESPACE")
         self.pod_name = pod_name or os.environ.get("POD_NAME")
         self.container_name = container_name or os.environ.get("CONTAINER_NAME")
+        if layout_version not in (1, 2):
+            raise ValueError("layout_version must be 1 or 2")
+        if minimum_sample_interval_seconds < 0:
+            raise ValueError("minimum_sample_interval_seconds must be non-negative")
+        self.layout_version = layout_version
+        self.strict = strict
+        self.minimum_sample_interval_seconds = minimum_sample_interval_seconds
+        self._warning_callback = warning_callback or logging.getLogger(__name__).warning
         self.device_keys = tuple(str(device_key) for device_key in device_keys)
         self.device_key_map = {
             str(chip_id): str(device_key)
@@ -90,6 +105,12 @@ class MetaliumProfilerPublisher:
         self._published_device_keys: set[str] = set()
         self._lock = threading.Lock()
         self._closed = False
+        self._disabled = False
+        self._warned = False
+        self._last_sample_monotonic: Optional[float] = None
+        self.failure_count = 0
+        self.last_failure: Optional[str] = None
+        self.last_success_timestamp: Optional[float] = None
         atexit.register(self.close)
 
     @staticmethod
@@ -110,17 +131,48 @@ class MetaliumProfilerPublisher:
         process-local records from another TTNN runtime.
         """
 
-        self.validate_profiler_environment()
-        import ttnn  # Imported only after the profiler environment is validated.
+        if self._disabled:
+            return {}
+        now = time.monotonic()
+        if (
+            self._last_sample_monotonic is not None
+            and now - self._last_sample_monotonic
+            < self.minimum_sample_interval_seconds
+        ):
+            return {}
+        self._last_sample_monotonic = now
+        try:
+            self.validate_profiler_environment()
+            import ttnn  # Imported only after the profiler environment is validated.
 
-        ttnn.ReadDeviceProfiler(device)
-        return self.publish_profiler_data(ttnn.get_latest_programs_perf_data())
+            ttnn.ReadDeviceProfiler(device)
+            return self._publish_profiler_data(
+                ttnn.get_latest_programs_perf_data()
+            )
+        except Exception as error:  # Telemetry must not terminate model execution.
+            self._handle_failure(error, disable=isinstance(error, RuntimeError))
+            if self.strict:
+                raise
+            return {}
 
     def publish_profiler_data(
         self, profiler_data: Mapping[object, Iterable[object]]
     ) -> Mapping[str, Mapping[str, int]]:
         """Publish already-read records; separated for testing and adapters."""
 
+        if self._disabled:
+            return {}
+        try:
+            return self._publish_profiler_data(profiler_data)
+        except Exception as error:  # Publication is best effort by default.
+            self._handle_failure(error)
+            if self.strict:
+                raise
+            return {}
+
+    def _publish_profiler_data(
+        self, profiler_data: Mapping[object, Iterable[object]]
+    ) -> Mapping[str, Mapping[str, int]]:
         summaries: dict[str, dict[str, int]] = {}
         seen_device_keys: set[str] = set()
 
@@ -146,30 +198,43 @@ class MetaliumProfilerPublisher:
                     f"core_count {cores_used} exceeds num_available_cores "
                     f"{self._known_totals[device_key]} for device {device_key}"
                 )
-            summary = {
-                "active": int(bool(records)),
-                "programs_observed": len(records),
-                "tensix_cores_used": cores_used,
-            }
-            if device_key in self._known_totals:
-                summary["tensix_cores_total"] = self._known_totals[device_key]
+            summary = self._summary(device_key, int(bool(records)), len(records), cores_used)
             self._publish(device_key, summary)
             summaries[device_key] = summary
 
         for device_key in self.device_keys:
             if device_key in seen_device_keys:
                 continue
-            summary = {
-                "active": 0,
-                "programs_observed": 0,
-                "tensix_cores_used": 0,
-            }
-            if device_key in self._known_totals:
-                summary["tensix_cores_total"] = self._known_totals[device_key]
+            summary = self._summary(device_key)
             self._publish(device_key, summary)
             summaries[device_key] = summary
 
+        self.last_failure = None
+        self.last_success_timestamp = time.time()
         return summaries
+
+    def _summary(
+        self, device_key: str, active: int = 0, programs: int = 0, cores: int = 0
+    ) -> dict[str, int]:
+        summary = {
+            "active": active,
+            "programs_observed": programs,
+            "tensix_cores_used": cores,
+        }
+        if device_key in self._known_totals:
+            summary["tensix_cores_total"] = self._known_totals[device_key]
+        return summary
+
+    def _handle_failure(self, error: Exception, *, disable: bool = False) -> None:
+        self.failure_count += 1
+        self.last_failure = type(error).__name__
+        if disable:
+            self._disabled = True
+        if not self._warned:
+            self._warning_callback(
+                "TT-Metalium telemetry publication disabled or degraded"
+            )
+            self._warned = True
 
     def close(self) -> None:
         """Mark previously published devices inactive on a normal process exit."""
@@ -178,17 +243,19 @@ class MetaliumProfilerPublisher:
             if self._closed:
                 return
             self._closed = True
+            if self._disabled:
+                return
             device_keys = self._published_device_keys or set(self.device_keys)
 
         for device_key in device_keys:
-            summary = {
-                "active": 0,
-                "programs_observed": 0,
-                "tensix_cores_used": 0,
-            }
-            if device_key in self._known_totals:
-                summary["tensix_cores_total"] = self._known_totals[device_key]
-            self._publish(device_key, summary, allow_closed=True)
+            try:
+                self._publish(
+                    device_key, self._summary(device_key), allow_closed=True
+                )
+            except Exception as error:
+                self._handle_failure(error)
+                if self.strict:
+                    raise
 
     def _publish(
         self, device_key: str, summary: Mapping[str, int], *, allow_closed: bool = False
@@ -203,13 +270,17 @@ class MetaliumProfilerPublisher:
 
             state_dir = self.state_root / device_key
             state_dir.mkdir(parents=True, exist_ok=True)
-            target = state_dir / f"{_safe_component(self.workload_id)}.state"
+            target = (
+                state_dir / "snapshot.state"
+                if self.layout_version == 2
+                else state_dir / f"{_safe_component(self.workload_id)}.state"
+            )
             temporary = target.with_name(
                 f".{target.name}.{os.getpid()}.{threading.get_ident()}.tmp"
             )
 
             fields: list[tuple[str, object]] = [
-                ("schema_version", 1),
+                ("schema_version", self.layout_version),
                 ("workload_id", self.workload_id),
                 ("sample_timestamp_seconds", int(time.time())),
                 ("active", summary["active"]),
