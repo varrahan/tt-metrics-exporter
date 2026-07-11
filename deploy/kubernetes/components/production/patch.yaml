@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tt-metrics-exporter
+spec:
+  template:
+    spec:
+      nodeSelector:
+        tenstorrent.com/accelerator: "true"
+      tolerations:
+        - key: tenstorrent.com/accelerator
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: exporter
+          args:
+            - --sysfs-root
+            - /mnt/tt/sysfs/class/tenstorrent
+            - --allocation-state-root
+            - /mnt/tt/allocations
+            - --janitor-state-root
+            - /mnt/tt/janitor
+            - --metalium-profiler-state-root
+            - /mnt/tt/profiler
+            - --listen-address
+            - 0.0.0.0
+            - --port
+            - "9400"
+            - --poll-interval
+            - "5"
+            - --max-snapshot-age
+            - "15"
+            - --require-device
+            - --shutdown-grace-period
+            - "10"
+            - --http-request-deadline
+            - "2"
+            - --log-format
+            - json
+          volumeMounts:
+            - name: allocation-state
+              mountPath: /mnt/tt/allocations
+              readOnly: true
+            - name: janitor-state
+              mountPath: /mnt/tt/janitor
+              readOnly: true
+            - name: profiler-state
+              mountPath: /mnt/tt/profiler
+              readOnly: true
+      volumes:
+        - name: allocation-state
+          hostPath:
+            path: /var/lib/tt-device-plugin/allocations
+            type: Directory
+        - name: janitor-state
+          hostPath:
+            path: /var/lib/tt-device-plugin/janitor
+            type: Directory
+        - name: profiler-state
+          hostPath:
+            path: /var/lib/tt-device-plugin/metalium-profiler
+            type: Directory

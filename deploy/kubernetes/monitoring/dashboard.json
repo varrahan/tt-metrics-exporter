@@ -1,0 +1,24 @@
+{
+  "title": "Tenstorrent Node Telemetry",
+  "uid": "tt-node-telemetry",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Exporter readiness by node", "targets": [{"expr": "max by (node) (tt_exporter_ready)"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 2, "type": "timeseries", "title": "Snapshot age", "targets": [{"expr": "tt_exporter_snapshot_age_seconds"}], "fieldConfig": {"defaults": {"unit": "s", "noValue": "unsupported / no safe source"}}},
+    {"id": 3, "type": "timeseries", "title": "Collection duration", "targets": [{"expr": "tt_exporter_collection_duration_seconds"}], "fieldConfig": {"defaults": {"unit": "s", "noValue": "unsupported / no safe source"}}},
+    {"id": 4, "type": "timeseries", "title": "Collection issues", "targets": [{"expr": "sum by (node, source, reason) (rate(tt_exporter_collection_issues_total[5m]))"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 5, "type": "stat", "title": "Discovered devices", "targets": [{"expr": "sum by (node) (tt_devices_discovered)"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 6, "type": "table", "title": "PCI and firmware identity", "targets": [{"expr": "tt_device_info"}, {"expr": "tt_firmware_info"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 7, "type": "timeseries", "title": "Temperature and clocks", "targets": [{"expr": "tt_hwmon_sensor_value"}, {"expr": "tt_firmware_clock_frequency_mhz"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 8, "type": "timeseries", "title": "Memory and Tensix", "targets": [{"expr": "tt_memory_used_bytes"}, {"expr": "tt_tensix_cores_used"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 9, "type": "timeseries", "title": "Workload core occupancy", "targets": [{"expr": "tt_metalium_workload_core_occupancy_ratio"}], "fieldConfig": {"defaults": {"unit": "percentunit", "noValue": "unsupported / no safe source"}}},
+    {"id": 10, "type": "table", "title": "Reset, quarantine, fault, OOM and hang", "targets": [{"expr": "tt_health_reset_required"}, {"expr": "tt_janitor_state_info"}, {"expr": "tt_health_oom_faults_total"}, {"expr": "tt_health_hang_faults_total"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 11, "type": "table", "title": "Scale-out links", "targets": [{"expr": "tt_interconnect_link_info"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 12, "type": "table", "title": "Exporter version distribution", "targets": [{"expr": "count by (version, revision) (tt_exporter_build_info)"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 13, "type": "timeseries", "title": "Power management", "targets": [{"expr": "tt_power_runtime_usage"}, {"expr": "tt_power_runtime_active_time_ms"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}},
+    {"id": 14, "type": "timeseries", "title": "Profiler stale and rejected records", "targets": [{"expr": "sum by (node, device) (tt_metalium_workload_profile_stale)"}, {"expr": "rate(tt_exporter_collection_issues_total{source=\"metalium_profiler_state\"}[5m])"}], "fieldConfig": {"defaults": {"noValue": "unsupported / no safe source"}}}
+  ]
+}

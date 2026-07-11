@@ -1,0 +1,9 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tt-metrics-exporter
+spec:
+  template:
+    spec:
+      nodeSelector:
+        tenstorrent.com/ttsim: "true"

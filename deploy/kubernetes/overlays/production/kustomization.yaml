@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+components:
+  - ../../components/production
+images:
+  - name: tt-metrics-exporter
+    newName: registry.example.com/tenstorrent/tt-metrics-exporter
+    digest: sha256:10542d8fab8af9587732f6f9a5dbfe783f31fcfe2b02006e0823accc9f7384c6
