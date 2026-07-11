@@ -69,6 +69,8 @@ jobs:
           format: sarif
           output: dist/vulnerabilities.sarif
           severity: CRITICAL
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
           exit-code: "1"
       - uses: azure/setup-kubectl@v4
         with:

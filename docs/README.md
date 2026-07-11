@@ -5,7 +5,7 @@ split into a separate repository without depending on the root project docs.
 
 The exporter is a Python node-local service for Tenstorrent hosts. It scans
 `/sys/class/tenstorrent`, exposes Prometheus metrics at `/metrics`, and exposes
-typed DRA-friendly device data at `/v1/devices`.
+device data at `/v1/devices`.
 
 Runtime validation that depends on `tt-kmd`, `/sys/class/tenstorrent`,
 `/dev/tenstorrent`, Docker, `kind`, or TT-Metalium must run from the QEMU

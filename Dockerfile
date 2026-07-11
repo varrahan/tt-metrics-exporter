@@ -1,25 +1,15 @@
 # syntax=docker/dockerfile:1.7
-ARG BUILD_IMAGE=debian@sha256:b1a741487078b369e78119849663d7f1a5341ef2768798f7b7406c4240f86aef
+ARG BUILD_IMAGE=python:3.11.15-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361
 ARG PYTHON_RUNTIME_IMAGE=gcr.io/distroless/python3-debian12@sha256:7d1042ce588ab97019fe95c24ffca7bc5a82ccdac572511d5e09bda4435c89c5
 
 FROM ${BUILD_IMAGE} AS build
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends \
-       ca-certificates=20230311+deb12u1 \
-       python3=3.11.2-1+b1 \
-       python3-build=0.9.0-1 \
-       python3-pip=23.0.1+dfsg-1 \
-       python3-setuptools=66.1.1-1+deb12u2 \
-       python3-wheel=0.38.4-2 \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /src
 COPY . .
 ARG VERSION=dev
 ARG REVISION=unknown
 ARG SOURCE_DATE_EPOCH=0
 ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
-RUN python3 -m pip install --break-system-packages --require-hashes --no-deps \
+RUN python3 -m pip install --require-hashes --no-deps \
       --requirement requirements-dev.lock \
     && grep -qx "__version__ = \"${VERSION}\"" \
       src/tt_metrics_exporter/_version.py \

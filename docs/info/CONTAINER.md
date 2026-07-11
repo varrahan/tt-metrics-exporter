@@ -1,11 +1,13 @@
 # Production Container
 
-The multi-stage [`Dockerfile`](../../Dockerfile) pins build and runtime bases by
-digest, pins Python build packages, and runs the complete contract suite before
-building the Python wheel. The final distroless Python runtime uses UID/GID `65532`, has no
-shell, compiler, package manager, TTNN, or publisher, and exposes pre-created
-read-only mount targets below `/mnt/tt`. It disables bytecode writes and needs
-no writable application directory.
+The multi-stage [`Dockerfile`](../../Dockerfile) uses the Docker Official
+`python:3.11-slim-bookworm` image for builds and a distroless Python image for
+the runtime. Both bases are pinned by digest. Python build packages are pinned
+by the hashed development requirements, and the complete contract suite runs
+before building the Python wheel. The final runtime uses UID/GID `65532`, has
+no shell, compiler, package manager, TTNN, or publisher, and exposes
+pre-created read-only mount targets below `/mnt/tt`. It disables bytecode
+writes and needs no writable application directory.
 
 Build reproducibly by supplying release metadata:
 
