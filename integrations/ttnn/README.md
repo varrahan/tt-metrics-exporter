@@ -15,3 +15,7 @@ python3 -m pip install .
 Use `example_dynamic_workload.py` as the integration example. The node-visible
 layout, ownership, and lifecycle contract is documented in
 [`docs/info/STATE_INGESTION_SECURITY.md`](../../docs/info/STATE_INGESTION_SECURITY.md).
+
+## License
+
+This package is licensed under the [Apache License 2.0](LICENSE).

@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Node-local Tenstorrent telemetry exporter"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "NOASSERTION"}
+license = {text = "Apache-2.0"}
 dependencies = [
     "click>=8.1,<9",
     "starlette>=0.47,<1",

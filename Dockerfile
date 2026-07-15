@@ -41,7 +41,7 @@ LABEL org.opencontainers.image.title="Tenstorrent Metrics Exporter" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.licenses="NOASSERTION"
+      org.opencontainers.image.licenses="Apache-2.0"
 ENV PYTHONPATH=/app \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -49,6 +49,7 @@ ENV PYTHONPATH=/app \
     TT_EXPORTER_BUILD_TIME=${SOURCE_DATE_EPOCH}
 COPY --from=build /out/python /app
 COPY --from=build /out/mounts /mnt/tt
+COPY LICENSE /licenses/LICENSE
 USER 65532:65532
 EXPOSE 9400
 ENTRYPOINT ["python3", "-m", "tt_metrics_exporter"]

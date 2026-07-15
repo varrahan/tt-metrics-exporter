@@ -24,8 +24,8 @@ A plain local `docker build .` uses the package's current version.
 Release builds still pass and verify explicit immutable version metadata.
 
 `SOURCE_DATE_EPOCH` is exposed by `--version`; version and revision are also in
-`tt_exporter_build_info`. Production should replace `NOASSERTION` in the OCI
-license label when the repository adopts a license.
+`tt_exporter_build_info`. The OCI license label is `Apache-2.0`, and the final
+image carries the complete license text at `/licenses/LICENSE`.
 
 Validate the final image with:
 
@@ -35,7 +35,8 @@ scripts/validation/image.sh tt-metrics-exporter:0.1.0 image-reports
 
 The validation checks metadata and non-root identity, rejects runtime shell,
 compiler, package-manager, and generated application bytecode paths, requires
-the Python module entry point, creates SPDX JSON with pinned Syft and SARIF
+the Python module entry point and Apache-2.0 license metadata/text, creates
+SPDX JSON with pinned Syft and SARIF
 critical-vulnerability results with pinned Trivy, and runs the final image with a read-only root,
 `no-new-privileges`, all capabilities dropped, read-only telemetry input,
 health/readiness/metrics checks, and bounded graceful termination.

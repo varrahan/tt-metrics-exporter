@@ -22,6 +22,7 @@ user=$(docker image inspect "${image}" --format '{{.Config.User}}')
 test "${user}" = "65532:65532"
 test "$(docker image inspect "${image}" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')" != ""
 test "$(docker image inspect "${image}" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" != ""
+test "$(docker image inspect "${image}" --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}')" = "Apache-2.0"
 test "$(docker image inspect "${image}" --format '{{json .Config.Entrypoint}}')" = \
   '["python3","-m","tt_metrics_exporter"]'
 docker image inspect "${image}" --format '{{range .Config.Env}}{{println .}}{{end}}' \
@@ -39,6 +40,7 @@ if grep -Eq '(^|/)(bin/(sh|bash)|usr/bin/(g\+\+|gcc|cmake)|usr/bin/apt|var/lib/d
 fi
 grep -qx 'usr/bin/python3' "${filesystem_listing}"
 grep -qx 'app/tt_metrics_exporter/__main__.py' "${filesystem_listing}"
+grep -qx 'licenses/LICENSE' "${filesystem_listing}"
 if grep -Eq '^app/.*(__pycache__|\.py[co]$)' "${filesystem_listing}"; then
   echo "runtime application contains generated Python bytecode" >&2
   rm -f "${filesystem_listing}"
