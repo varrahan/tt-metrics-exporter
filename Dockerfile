@@ -33,7 +33,7 @@ FROM ${PYTHON_RUNTIME_IMAGE} AS runtime
 ARG VERSION
 ARG REVISION=unknown
 ARG SOURCE_DATE_EPOCH=0
-ARG SOURCE_URL=https://github.com/varrahan/tt-dra-metrics-exporter
+ARG SOURCE_URL=https://github.com/varrahan/tt-metrics-exporter
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="Tenstorrent Metrics Exporter" \
       org.opencontainers.image.description="Node-local Tenstorrent telemetry exporter" \

@@ -27,7 +27,7 @@ tests:
             exp_annotations:
               summary: Tenstorrent exporter target is absent
               description: Prometheus cannot scrape the node-local Tenstorrent exporter.
-              runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
+              runbook_url: https://github.com/varrahan/tt-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
       - eval_time: 7m
         alertname: TTExporterTargetAbsent
         exp_alerts: []
@@ -38,7 +38,7 @@ tests:
             exp_annotations:
               summary: Tenstorrent exporter is not ready
               description: The exporter has no current complete snapshot or a critical source failed.
-              runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
+              runbook_url: https://github.com/varrahan/tt-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
       - eval_time: 7m
         alertname: TTExporterNotReady
         exp_alerts: []
@@ -49,7 +49,7 @@ tests:
             exp_annotations:
               summary: Tenstorrent sysfs source is inaccessible
               description: The exporter cannot access its configured critical sysfs root.
-              runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
+              runbook_url: https://github.com/varrahan/tt-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
       - eval_time: 7m
         alertname: TTExporterCriticalSourceFailure
         exp_alerts: []
@@ -60,7 +60,7 @@ tests:
             exp_annotations:
               summary: Expected Tenstorrent device is missing
               description: No Tenstorrent device is present on a node selected for accelerator service.
-              runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
+              runbook_url: https://github.com/varrahan/tt-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
       - eval_time: 12m
         alertname: TTExpectedDeviceMissing
         exp_alerts: []
@@ -71,7 +71,7 @@ tests:
             exp_annotations:
               summary: Tenstorrent device requires reset
               description: A safe device source reports that reset is required.
-              runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
+              runbook_url: https://github.com/varrahan/tt-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#source-policy
       - eval_time: 4m
         alertname: TTDeviceResetRequired
         exp_alerts: []
@@ -82,7 +82,7 @@ tests:
             exp_annotations:
               summary: Tenstorrent device is quarantined
               description: The hardware janitor has quarantined a device from workload use.
-              runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/STATE_INGESTION_SECURITY.md#cleanup-ownership
+              runbook_url: https://github.com/varrahan/tt-metrics-exporter/blob/main/docs/info/STATE_INGESTION_SECURITY.md#cleanup-ownership
       - eval_time: 4m
         alertname: TTDeviceQuarantined
         exp_alerts: []
@@ -93,7 +93,7 @@ tests:
             exp_annotations:
               summary: Tenstorrent collection is stale
               description: The last complete node snapshot is more than 60 seconds old.
-              runbook_url: https://github.com/varrahan/tt-dra-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
+              runbook_url: https://github.com/varrahan/tt-metrics-exporter/blob/main/docs/info/OPERATIONAL_CONTRACT.md#endpoint-semantics
       - eval_time: 7m
         alertname: TTExporterCollectionStale
         exp_alerts: []

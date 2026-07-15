@@ -1,11 +1,11 @@
 # Tenstorrent Metrics Exporter
 
-This directory contains the Python Tenstorrent metrics exporter described in
+This repository contains the Python Tenstorrent metrics exporter. Its telemetry
+source and state-file contracts are described in
 [`docs/guides/TT_METRICS_EXPORTER.md`](docs/guides/TT_METRICS_EXPORTER.md).
-It is kept self-contained so it can be split into a separate repository.
 
 The exporter is intended to run as a node-local DaemonSet in the QEMU `ttsim`
-VM and, later, on physical Tenstorrent hosts. Runtime validation that depends on
+VM or on physical Tenstorrent hosts. Runtime validation that depends on
 `tt-kmd`, `/sys/class/tenstorrent`, `/dev/tenstorrent`, Docker, `kind`, or DRA
 APIs must be performed from the VM.
 
@@ -251,8 +251,8 @@ source and add a lower-level sysfs, Kubernetes, or TT-Metalium/profiler source
 before depending on it.
 
 The exporter does not synthesize static capacity from a card-type table.
-Capacity, memory, core, and bandwidth values must come from the device driver,
-firmware telemetry, Kubernetes allocation state, or TT-Metalium/profiler data.
+Capacity, memory, core, and bandwidth values must come from safe driver,
+firmware, sysfs, or TT-Metalium profiler data.
 
 The stable liveness, readiness, snapshot, and critical-source behavior is
 defined in [`docs/info/OPERATIONAL_CONTRACT.md`](docs/info/OPERATIONAL_CONTRACT.md).
