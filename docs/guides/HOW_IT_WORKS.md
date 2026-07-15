@@ -1,6 +1,6 @@
 # How the Tenstorrent Telemetry System Works
 
-This document explains the components under `src/telemetry`, what each one is
+This document explains the repository's components, what each one is
 responsible for, and how data moves from a Tenstorrent device or workload to a
 Prometheus scrape or JSON response.
 
@@ -43,7 +43,7 @@ TTNN workload                   |                           +--> Prometheus rend
                                             |
                                       Starlette / Uvicorn
                                             |
-                    /metrics   /v1/devices   /healthz   /readyz
+               /metrics   /v1/devices   /healthz   /readyz
 ```
 
 The exporter does not open a Tenstorrent device through TT-Metalium. It
@@ -114,8 +114,8 @@ Important options include:
   polling interval.
 - `--require-device`: require at least one discovered device for readiness.
 - `--shutdown-grace-period`: hard upper bound for graceful termination.
-- `--http-workers` and `--http-queue-depth`: bound accepted connections;
-  defaults allow four active requests and 64 queued connections.
+- `--http-workers` and `--http-queue-depth`: define the accepted-connection
+  cap; the default cap is their sum, 68 connections.
 - `--http-request-deadline`: initial-request deadline; defaults to two seconds.
 - `--maximum-rendered-payload-bytes`: per-representation publication bound.
 
@@ -222,14 +222,15 @@ hardware generation, and simulator fidelity.
 
 Collection is deliberately tolerant:
 
-- A missing sysfs root produces an empty device list.
+- A missing sysfs root produces no devices and marks the collection
+  unsuccessful; one-shot mode exits nonzero and service readiness stays false.
 - A missing optional file leaves its field absent.
 - Permission errors on individual files or directories do not crash the
   exporter.
 - Invalid numeric values are ignored.
 
-This keeps the node exporter available even when a driver exposes only a
-partial telemetry surface.
+This keeps the HTTP process available when a driver exposes only a partial
+telemetry surface while preserving failure semantics for the critical root.
 
 The configured sysfs root is the sole critical collection source. DRA,
 janitor, and profiler roots are optional when omitted; once configured, root
@@ -474,10 +475,12 @@ Endpoints are:
 - `GET /metrics`: Prometheus exposition format.
 - `GET /v1/devices`: structured JSON inventory.
 - `GET /healthz`: process liveness response, `ok`.
+- `GET /readyz`: snapshot readiness and a bounded reason.
 - Any other path: `404 Not Found`.
 
-The server has a bounded accepted-connection limit and initial-request
-deadline. Contract middleware enforces an 8 KiB header limit, accepts exact
+The server caps accepted connections at `--http-workers` plus
+`--http-queue-depth` and enforces an initial-request deadline. Contract
+middleware enforces an 8 KiB header limit, accepts exact
 `GET` routes, ignores a query string for routing, rejects request bodies, and
 returns bounded `400`, `404`, `405`, or `431` responses. All responses include `Content-Length`,
 `Content-Type`, `Connection: close`, and `X-Content-Type-Options: nosniff`.
@@ -516,28 +519,20 @@ runtime dependencies into a pinned distroless Python image.
 
 Files:
 
-- `tests/unit/test_collector.py`
-- `tests/unit/test_renderers.py`
-- `tests/unit/test_runtime.py`
-- `tests/unit/test_profiler_publisher.py`
+- `tests/unit/`
 - `tests/integration/`
+- `tests/fixtures/`
 
 Pytest tests create temporary sysfs and state trees. They verify parsers, collection,
 missing-root behavior, both output formats, state ingestion, runtime status,
 HTTP behavior, lifecycle, logging, staleness, and invalid profiler records.
 
-The Python test verifies atomic publication, inactive cleanup, empty reads,
+Publisher tests verify atomic publication, inactive cleanup, empty reads,
 runtime-chip-to-exporter-device mapping, impossible core-count rejection, and
 required profiler environment validation.
 
-Run all configured tests with:
-
-```bash
-uv sync --locked
-uv run scripts/ci/run_tests.py
-uv run ruff check src tests scripts
-uv run python scripts/ci/check_docs.py
-```
+Setup and test commands are maintained in the repository
+[README](../../README.md#build-and-test).
 
 ## 14. Runtime and simulator boundary
 
@@ -545,7 +540,7 @@ The Python sysfs exporter can be validated in the QEMU guest after the official
 TTSim PCI bridge enumerates the Wormhole device and compatible `tt-kmd` binds
 to it.
 
-The current official QEMU bridge is not a complete TTNN execution path. TTNN
+The qualified QEMU bridge is not a complete TTNN execution path. TTNN
 topology discovery reaches a simulator register that is not implemented. As a
 result:
 
@@ -555,7 +550,7 @@ result:
 - Use compatible physical hardware for real TT-Metalium profiler samples.
 
 This distinction is important: an empty workload-profiler metric family in the
-current QEMU VM does not mean the exporter failed. It means no compatible
+QEMU VM does not mean the exporter failed. It means no compatible
 TTNN workload produced a profiler snapshot.
 
 ## 15. End-to-end lifecycle

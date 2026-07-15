@@ -20,14 +20,15 @@ test allows fifteen minutes and widens only its disposable cluster's
 control-plane leader-election and startup budgets because nested TCG
 virtualization can pause the Kubernetes API for tens of seconds.
 
-This host-side test uses a synthetic read-only sysfs directory. It proves image
-loading, scheduling, probes, rollout history, and undo; it does not prove KMD
-or hardware telemetry behavior.
+These synthetic Kind tests use a read-only sysfs directory. They prove image
+loading, scheduling, probes, rollout history, undo, and policy behavior; they
+do not prove KMD or hardware telemetry behavior.
 
 The NetworkPolicy test creates a separate single-node Kind cluster with the
 pinned Calico manifest, proves an HTTP request from the `monitoring` namespace
-succeeds, and proves the same request from `default` is denied. Both scripts
-delete their disposable clusters unless `KEEP_KIND_CLUSTER=1` is set.
+succeeds, and proves the same request from `default` is denied. Run both tests
+inside the QEMU VM or on a physical validation host. Both scripts delete their
+disposable clusters unless `KEEP_KIND_CLUSTER=1` is set.
 
 The base creates a tokenless ServiceAccount with no RBAC, an unprivileged
 DaemonSet, a headless per-pod Service, and default-deny ingress allowing only
@@ -66,7 +67,7 @@ device-presence, stale-snapshot, reset, and quarantine alerts.
 
 Live apply, CNI enforcement, per-node discovery, rolling update, and rollback
 must be tested on Kubernetes v1.34+ inside the official QEMU VM or on physical
-hardware. Host-side rendering is not evidence for those gates.
+hardware. Static manifest rendering alone is not evidence for those gates.
 
 For an emergency rollback, use
 `kubectl rollout undo daemonset/tt-metrics-exporter` after confirming that the

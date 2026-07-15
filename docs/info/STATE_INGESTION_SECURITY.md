@@ -38,9 +38,9 @@ The exporter reads legacy `schema_version=1` files at
 2027-01-10. A v1 record cannot replace a v2 record with the same workload ID.
 
 Limits are 16 KiB per state file, 32 fields, 128-byte workload/device keys,
-63-byte namespace/container names, a 253-byte pod name, 4,096 inspected files
-per device, and 1,024 exported workloads per device. Valid fresh records are
-prioritized before stale records when applying the export limit.
+63-byte namespace/container names, a 253-byte pod name, 4,096 entries per
+bounded directory scan, and 1,024 exported workloads per device. Valid fresh
+records are prioritized before stale records when applying the export limit.
 
 ## Cleanup ownership
 

@@ -36,10 +36,10 @@ scripts/validation/image.sh tt-metrics-exporter:0.1.0 image-reports
 The validation checks metadata and non-root identity, rejects runtime shell,
 compiler, package-manager, and generated application bytecode paths, requires
 the Python module entry point and Apache-2.0 license metadata/text, creates
-SPDX JSON with pinned Syft and SARIF
-critical-vulnerability results with pinned Trivy, and runs the final image with a read-only root,
-`no-new-privileges`, all capabilities dropped, read-only telemetry input,
-health/readiness/metrics checks, and bounded graceful termination.
+SPDX JSON with pinned Syft and SARIF critical-vulnerability results with pinned
+Trivy, and runs the final image with a read-only root, `no-new-privileges`, all
+capabilities dropped, read-only telemetry input, health/readiness/metrics
+checks, and bounded graceful termination.
 
 The scanners read a temporary `docker save` archive. They do not require Docker
 SBOM or Scout plugins and are not given the Docker socket.

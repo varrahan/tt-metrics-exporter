@@ -1,8 +1,5 @@
 # Tenstorrent Metrics Exporter Documentation
 
-This documentation is local to the telemetry exporter so `src/telemetry` can be
-split into a separate repository without depending on the root project docs.
-
 The exporter is a Python node-local service for Tenstorrent hosts. It scans
 `/sys/class/tenstorrent`, exposes Prometheus metrics at `/metrics`, and exposes
 device data at `/v1/devices`.
@@ -16,9 +13,6 @@ Do not use `tt-smi` as an exporter source. The exporter collects only from safe
 node-local sources: `tt-kmd` sysfs, backing PCI sysfs, `hwmon` when available,
 Kubernetes allocation state, janitor state, and atomically published
 TT-Metalium workload profiler snapshots.
-
-Shared VM prerequisites are tracked outside this component in the parent
-repository's `vm/` directory.
 
 When using Tenstorrent's QEMU bridge, use its documented TCG configuration with
 `-cpu max`; do not enable KVM or use `-cpu host`. The current bridge supports
@@ -40,5 +34,6 @@ See:
   NetworkPolicy, and cluster-validation boundaries.
 - [HOW_IT_WORKS.md](guides/HOW_IT_WORKS.md) for the component architecture and
   end-to-end data flow.
-- [TT_METRICS_EXPORTER.md](guides/TT_METRICS_EXPORTER.md) for the build and
-  operation guide.
+- [TT_METRICS_EXPORTER.md](guides/TT_METRICS_EXPORTER.md) for telemetry source
+  and state-file contracts. Setup and run instructions are in the repository
+  [README](../README.md).

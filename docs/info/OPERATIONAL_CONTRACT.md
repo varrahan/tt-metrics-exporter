@@ -7,8 +7,8 @@ Python TTNN workload adapter publishes process-local profiler snapshots.
 ## Endpoint semantics
 
 - `GET /healthz` is a shallow liveness check. It returns `200` with `ok` while
-  the HTTP loop can serve requests and shutdown has not begun. It never reads
-  hardware or state files.
+  the HTTP loop can serve requests. It never reads hardware or state files and
+  does not report snapshot readiness.
 - `GET /readyz` is a readiness check. It returns `200` only after a successful
   initial collection and while the last complete snapshot is no older than the
   configured maximum age. It returns `503` with a bounded, enumerated reason
@@ -39,10 +39,11 @@ The bounded collection sources are:
 | `allocation_state` | Optional | An unconfigured root is ignored. Once configured, root unreadability is reported as an operational error, while an absent per-device field remains valid missing data. |
 | `janitor_state` | Optional | An unconfigured root is ignored. Once configured, root unreadability is reported as an operational error, while an absent per-device field remains valid missing data. |
 | `metalium_profiler_state` | Optional | An unconfigured root is ignored. Once configured, root unreadability is reported as an operational error; rejected, stale, and excessive records use bounded diagnostics. |
-| `http_server` | Always configured | HTTP failures are reported through bounded route and status dimensions. |
 
 Metric labels and readiness responses never contain paths, file contents,
 workload identifiers, exception strings, or raw operating-system errors.
+HTTP failures are reported separately through bounded route and status
+dimensions.
 
 ## Validation boundary
 

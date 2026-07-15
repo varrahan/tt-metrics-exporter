@@ -1,8 +1,9 @@
-# Tenstorrent DRA Metrics Exporter
+# Telemetry Sources and State Files
 
-This service is the telemetry boundary for the Kubernetes DRA driver. It runs
-node-local, discovers Tenstorrent devices, and exposes both Prometheus metrics
-and structured JSON for provisioning logic.
+The exporter runs node-local, discovers Tenstorrent devices, and exposes both
+Prometheus metrics and structured JSON. This guide records the safe telemetry
+sources and node-state file formats. Use the repository [README](../../README.md)
+for setup, test, container, and deployment commands.
 
 ## Runtime Sources
 
@@ -10,7 +11,6 @@ and structured JSON for provisioning logic.
   runtime power state, PCI identity, PCIe link state, IOMMU group, reset method,
   PCI resources, actual memory/core/topology fields when exposed, and optional
   simulator counters.
-- `/dev/tenstorrent`: character devices that can be mounted into containers.
 - Kubernetes DRA allocation state: node-local files passed with
   `--allocation-state-root`, used for per-workload ownership.
 - Hardware janitor state: node-local files passed with `--janitor-state-root`,
@@ -39,9 +39,9 @@ overlay. PCIe performance counters follow the same policy through
 
 ## Actual Value File Contract
 
-The exporter tolerates missing files. Agents should write one directory per
-device under the relevant root, keyed by the sysfs device ID, PCI BDF, or
-character-device basename.
+The exporter tolerates missing files. Allocation and janitor writers create one
+directory per device under their configured root, keyed by the sysfs device
+ID, PCI BDF, or character-device basename.
 
 Safe sysfs files currently collected when present include:
 
@@ -84,8 +84,10 @@ the publisher state root. The publisher atomically replaces a
 `tensix_cores_used`, optional `tensix_cores_total`, and optional Kubernetes pod
 labels. The exporter treats samples older than
 `--metalium-profiler-stale-after` as inactive; the default is 15 seconds. It
-also rejects timestamps implausibly far in the future, malformed records,
-records larger than 16 KiB, and more than 1024 workload records per device.
+also treats timestamps implausibly far in the future as stale, rejects
+malformed records and records larger than 16 KiB, and exports at most 1024
+workload records per device.
+
 Legacy schema-version-1 files remain read-only migration inputs through
 2027-01-10 and cannot override a v2 identity. See
 [`STATE_INGESTION_SECURITY.md`](../info/STATE_INGESTION_SECURITY.md) for ownership,
@@ -106,68 +108,11 @@ TT-Metalium and open an already-owned device solely for telemetry.
 - `GET /metrics`: the most recent complete Prometheus snapshot plus exporter
   self-metrics.
 - `GET /v1/devices`: the same complete snapshot generation as `/metrics`, as
-  typed device inventory for DRA and provisioning code.
+  typed device inventory for API consumers.
 
 `/v1/devices` preserves missing values as JSON `null`. The exporter should not
 invent runtime memory or core data when the simulator or driver does not expose
 that information.
-
-## Build And Test
-
-```bash
-uv sync --locked
-uv run scripts/ci/run_tests.py
-uv run ruff check src tests scripts
-uv run python -m build --wheel --no-isolation --outdir dist
-uv run python scripts/ci/check_docs.py
-```
-
-For development, the parity-tested Python implementation can be run directly:
-
-```bash
-PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --once
-PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --once --json
-PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --port 9400
-```
-
-Installing the root Python package provides the same
-`tt-metrics-exporter` console command. The default container and production
-manifest use this Python entry point.
-
-From the QEMU VM or a physical Tenstorrent host:
-
-```bash
-PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --once
-PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --once --json
-PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent --port 9400
-PYTHONPATH=src python3 -m tt_metrics_exporter --sysfs-root /sys/class/tenstorrent \
-  --allocation-state-root /var/lib/tt-device-plugin/allocations \
-  --janitor-state-root /var/lib/tt-device-plugin/janitor \
-  --metalium-profiler-state-root /var/lib/tt-device-plugin/metalium-profiler \
-  --metalium-profiler-stale-after 15 \
-  --max-snapshot-age 15 \
-  --shutdown-grace-period 10 \
-  --port 9400
-```
-
-Before TTNN initializes, use a profiler-enabled TT-Metalium source build and
-set:
-
-```bash
-export TT_METAL_DEVICE_PROFILER=1
-export TT_METAL_PROFILER_MID_RUN_DUMP=1
-export TT_METAL_PROFILER_CPP_POST_PROCESS=1
-export TT_METAL_PROFILER_DISABLE_DUMP_TO_FILES=1
-```
-
-Verify that the TTNN/TT-Metalium build used by the workload includes Tracy
-support before enabling device profiling. A prebuilt wheel without profiler
-support will fail during initialization. For source builds, enable Tracy with
-the build system's profiler option (for example, `-DENABLE_TRACY=ON`) and
-follow the version-specific TT-Metalium build instructions.
-
-The dump-to-files setting retains the in-process profiler results used by the
-publisher while avoiding profiler CSV artifacts in workload containers.
 
 ## Simulator Caveat
 
