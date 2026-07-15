@@ -2,6 +2,7 @@
 build*
 dist
 image-reports
+evidence
 *.egg-info
 *.pyc
 __pycache__

@@ -93,7 +93,7 @@ jobs:
           kubectl kustomize deploy/kubernetes/overlays/ttsim > dist/rendered/ttsim.yaml
           kubectl kustomize deploy/kubernetes/overlays/production > dist/rendered/production.yaml
           kubectl kustomize deploy/kubernetes/monitoring > dist/rendered/monitoring.yaml
-          tar -czf "dist/tt-telemetry-deploy-${GITHUB_REF_NAME}.tar.gz" deploy dist/rendered docs
+          tar -czf "dist/tt-telemetry-deploy-${GITHUB_REF_NAME}.tar.gz" LICENSE deploy dist/rendered docs
           printf '%s\n' "revision=${GITHUB_SHA}" \
             "image_digest=${{ steps.image.outputs.digest }}" \
             > dist/RELEASE-METADATA

@@ -82,6 +82,9 @@ dist/
 .pytest_cache/
 .ruff_cache/
 
+# Local runtime qualification evidence
+/evidence/
+
 # Temporary md files to guide agents
 docs/temp/
 docs/temp/*
