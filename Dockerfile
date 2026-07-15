@@ -1,11 +1,12 @@
 # syntax=docker/dockerfile:1.7
 ARG BUILD_IMAGE=python:3.11.15-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361
 ARG PYTHON_RUNTIME_IMAGE=gcr.io/distroless/python3-debian12@sha256:7d1042ce588ab97019fe95c24ffca7bc5a82ccdac572511d5e09bda4435c89c5
+ARG VERSION=0.1.0
 
 FROM ${BUILD_IMAGE} AS build
 WORKDIR /src
 COPY . .
-ARG VERSION=dev
+ARG VERSION
 ARG REVISION=unknown
 ARG SOURCE_DATE_EPOCH=0
 ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
@@ -29,7 +30,7 @@ FROM scratch AS wheel
 COPY --from=build /wheel /
 
 FROM ${PYTHON_RUNTIME_IMAGE} AS runtime
-ARG VERSION=dev
+ARG VERSION
 ARG REVISION=unknown
 ARG SOURCE_DATE_EPOCH=0
 ARG SOURCE_URL=https://github.com/varrahan/tt-dra-metrics-exporter

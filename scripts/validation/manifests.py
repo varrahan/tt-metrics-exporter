@@ -44,6 +44,9 @@ def main() -> None:
     assert container_security["readOnlyRootFilesystem"] is True
     assert container_security["capabilities"]["drop"] == ["ALL"]
     assert not container_security.get("privileged", False)
+    startup = container["startupProbe"]
+    assert startup["httpGet"]["path"] == "/healthz"
+    assert startup["periodSeconds"] * startup["failureThreshold"] >= 300
     assert container["livenessProbe"]["httpGet"]["path"] == "/healthz"
     assert container["readinessProbe"]["httpGet"]["path"] == "/readyz"
     assert all(mount["readOnly"] for mount in container["volumeMounts"])

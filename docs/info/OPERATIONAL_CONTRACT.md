@@ -52,6 +52,8 @@ Tenstorrent hardware or in the official QEMU `ttsim` VM using TCG with
 `-cpu max`; KVM and `-cpu host` are not supported recommendations.
 
 QEMU validates PCI enumeration, KMD binding, sysfs collection, container
-deployment, and snapshot ingestion. Real TTNN profiler execution requires
+deployment, controlled alert behavior, CNI-enforced ingress policy, short soak
+behavior, and snapshot ingestion. The provisional resource envelope requires a
+72-hour soak on physical hardware. Real TTNN profiler execution requires
 compatible physical hardware or a simulator implementing the required device
 and profiler path.

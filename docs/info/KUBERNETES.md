@@ -12,16 +12,31 @@ Kubernetes 1.34 Kind cluster:
 
 ```bash
 scripts/validation/kind_rollout.sh tt-metrics-exporter:python-local
+scripts/validation/kind_network_policy.sh tt-metrics-exporter:python-local
 ```
+
+The rollout test allows ten minutes for Kind and exporter readiness. The policy
+test allows fifteen minutes and widens only its disposable cluster's
+control-plane leader-election and startup budgets because nested TCG
+virtualization can pause the Kubernetes API for tens of seconds.
 
 This host-side test uses a synthetic read-only sysfs directory. It proves image
 loading, scheduling, probes, rollout history, and undo; it does not prove KMD
 or hardware telemetry behavior.
 
+The NetworkPolicy test creates a separate single-node Kind cluster with the
+pinned Calico manifest, proves an HTTP request from the `monitoring` namespace
+succeeds, and proves the same request from `default` is denied. Both scripts
+delete their disposable clusters unless `KEEP_KIND_CLUSTER=1` is set.
+
 The base creates a tokenless ServiceAccount with no RBAC, an unprivileged
 DaemonSet, a headless per-pod Service, and default-deny ingress allowing only
 the `monitoring` namespace on port 9400. The CNI must enforce NetworkPolicy; if
 it does not, equivalent management-network isolation is required.
+
+The startup probe allows up to five minutes for the initial VM or hardware
+collection before liveness checks can restart the process. Readiness remains
+false until the exporter has published a complete snapshot.
 
 The two sysfs mounts preserve relative class-to-device links without mounting
 all host sysfs into the application namespace. Production additionally mounts
@@ -44,6 +59,10 @@ Operator can add their
 approved Prometheus pod annotations to the DaemonSet template and scrape the
 named `metrics` port at `/metrics`; those annotations are intentionally absent
 from the portable base.
+
+`scripts/validation/monitoring.sh` checks all rules with pinned `promtool` and
+executes controlled firing and recovery scenarios for the core availability,
+device-presence, stale-snapshot, reset, and quarantine alerts.
 
 Live apply, CNI enforcement, per-node discovery, rolling update, and rollback
 must be tested on Kubernetes v1.34+ inside the official QEMU VM or on physical

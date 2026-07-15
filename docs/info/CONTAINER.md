@@ -20,6 +20,9 @@ docker build \
   -t tt-metrics-exporter:0.1.0 .
 ```
 
+A plain local `docker build .` uses the package's current version.
+Release builds still pass and verify explicit immutable version metadata.
+
 `SOURCE_DATE_EPOCH` is exposed by `--version`; version and revision are also in
 `tt_exporter_build_info`. Production should replace `NOASSERTION` in the OCI
 license label when the repository adopts a license.
@@ -32,7 +35,10 @@ scripts/validation/image.sh tt-metrics-exporter:0.1.0 image-reports
 
 The validation checks metadata and non-root identity, rejects runtime shell,
 compiler, package-manager, and generated application bytecode paths, requires
-the Python module entry point, creates SPDX JSON and SARIF vulnerability
-reports, and runs the final image with a read-only root,
+the Python module entry point, creates SPDX JSON with pinned Syft and SARIF
+critical-vulnerability results with pinned Trivy, and runs the final image with a read-only root,
 `no-new-privileges`, all capabilities dropped, read-only telemetry input,
 health/readiness/metrics checks, and bounded graceful termination.
+
+The scanners read a temporary `docker save` archive. They do not require Docker
+SBOM or Scout plugins and are not given the Docker socket.

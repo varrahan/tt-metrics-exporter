@@ -13,7 +13,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = str(ROOT / "src")
 sys.path.insert(0, SOURCE)
-os.environ["PYTHONPATH"] = SOURCE + os.pathsep + os.environ.get("PYTHONPATH", "")
+sys.path.insert(1, str(ROOT))
+os.environ["PYTHONPATH"] = os.pathsep.join((SOURCE, str(ROOT), os.environ.get("PYTHONPATH", "")))
 
 
 if __name__ == "__main__":

@@ -15,46 +15,23 @@ command -v lspci
 command -v docker
 command -v kubectl
 command -v kind
+command -v curl
 
 lspci -nn | tee "${evidence_dir}/lspci.txt"
 lspci -nn | grep -i '1e52:'
 lsmod | tee "${evidence_dir}/lsmod.txt" | grep tenstorrent
 test -d /sys/class/tenstorrent
-find /sys/class/tenstorrent -maxdepth 1 -mindepth 1 -printf '%f\n' \
-  | tee "${evidence_dir}/sysfs-devices.txt" | grep .
-find /dev -maxdepth 2 -name 'tenstorrent*' -print \
-  | tee "${evidence_dir}/character-devices.txt" | grep .
+find /sys/class/tenstorrent -maxdepth 1 -mindepth 1 -printf '%f\n' | tee "${evidence_dir}/sysfs-devices.txt" | grep .
+find /dev -maxdepth 2 -name 'tenstorrent*' -print | tee "${evidence_dir}/character-devices.txt" | grep .
 
-docker run --rm \
-  --mount type=bind,src=/sys/class/tenstorrent,dst=/mnt/tt/sysfs/class/tenstorrent,readonly \
-  --mount type=bind,src=/sys/devices,dst=/mnt/tt/sysfs/devices,readonly \
-  "${image}" --sysfs-root /mnt/tt/sysfs/class/tenstorrent \
-  --once >/dev/null
-SKIP_SUPPLY_CHAIN=1 scripts/validation/image.sh "${image}" "${evidence_dir}/image"
-
-kubectl version -o yaml | tee "${evidence_dir}/kubernetes-version.yaml"
-server_minor=$(kubectl version -o json | python3 -c \
-  'import json,sys; print(json.load(sys.stdin)["serverVersion"]["minor"].rstrip("+"))')
-test "${server_minor}" -ge 34
+docker run --rm --mount type=bind,src=/sys/class/tenstorrent,dst=/mnt/tt/sysfs/class/tenstorrent,readonly --mount type=bind,src=/sys/devices,dst=/mnt/tt/sysfs/devices,readonly "${image}" --sysfs-root /mnt/tt/sysfs/class/tenstorrent --once --json >"${evidence_dir}/devices.json"
+python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); assert data["summary"]["devicesDiscovered"] > 0; assert all(device["pci"]["vendorId"] == "0x1e52" and device["pci"]["bdf"] and device["characterDevice"] for device in data["devices"])' "${evidence_dir}/devices.json"
+scripts/validation/image.sh "${image}" "${evidence_dir}/image"
 
 scripts/validation/manifests.sh
 scripts/validation/monitoring.sh
-docker tag "${image}" tt-metrics-exporter:ttsim
-kind load docker-image tt-metrics-exporter:ttsim
-kubectl label node --all tenstorrent.com/ttsim=true --overwrite
-kubectl apply -k deploy/kubernetes/overlays/ttsim
-kubectl rollout status daemonset/tt-metrics-exporter --timeout=5m
-kubectl get daemonset,pod,service,networkpolicy -o wide \
-  | tee "${evidence_dir}/kubernetes-resources.txt"
-kubectl auth can-i --as=system:serviceaccount:default:tt-metrics-exporter \
-  --list | tee "${evidence_dir}/service-account-access.txt"
-kubectl rollout restart daemonset/tt-metrics-exporter
-kubectl rollout status daemonset/tt-metrics-exporter --timeout=5m
-kubectl rollout undo daemonset/tt-metrics-exporter
-kubectl rollout status daemonset/tt-metrics-exporter --timeout=5m
-test "$(kubectl get daemonset tt-metrics-exporter -o jsonpath='{.spec.template.metadata.labels.telemetry\.tenstorrent\.com/implementation}')" = python
-test "$(kubectl get pod -l app.kubernetes.io/name=tt-metrics-exporter -o jsonpath='{.items[0].status.containerStatuses[0].ready}')" = true
+scripts/validation/kind_rollout.sh "${image}" 2>&1 | tee "${evidence_dir}/kind-rollout.log"
+scripts/validation/kind_network_policy.sh "${image}" 2>&1 | tee "${evidence_dir}/network-policy.log"
+scripts/validation/soak.sh "${image}" "${evidence_dir}/soak.csv"
 
-scripts/ci/run_tests.py 2>&1 | tee "${evidence_dir}/contract-tests.txt"
-
-echo "VM validation completed; attach CNI NetworkPolicy and controlled alert evidence manually."
+echo "VM validation completed."

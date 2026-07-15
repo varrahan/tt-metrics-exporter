@@ -29,13 +29,38 @@ def scrape(url: str, results: list[tuple[float, int, str]]) -> None:
         with urllib.request.urlopen(url, timeout=3) as response:
             payload = response.read().decode()
             results.append((time.monotonic() - started, len(payload), payload))
-    except Exception:
+    except (OSError, UnicodeError):
         results.append((time.monotonic() - started, 0, ""))
 
 
 def metric(payload: str, name: str) -> float:
     match = re.search(rf"^{re.escape(name)} ([0-9.eE+-]+)$", payload, re.MULTILINE)
     return float(match.group(1)) if match else 0.0
+
+
+def summarize(rows: list[dict[str, int | float]]) -> dict[str, int | float]:
+    warm = rows[len(rows) // 4 :] or rows
+    return {
+        "samples": len(rows),
+        "successful_scrapes": sum(row["successful_scrapes"] for row in rows),
+        "failed_scrapes": sum(row["failed_scrapes"] for row in rows),
+        "rss_growth_bytes": warm[-1]["rss_bytes"] - warm[0]["rss_bytes"],
+        "thread_growth": warm[-1]["threads"] - warm[0]["threads"],
+        "descriptor_growth": warm[-1]["file_descriptors"] - warm[0]["file_descriptors"],
+        "maximum_series": max(row["series"] for row in rows),
+        "maximum_scrape_seconds": max(row["maximum_scrape_seconds"] for row in rows),
+    }
+
+
+def validate(summary: dict[str, int | float], maximum_rss_growth_bytes: int, maximum_failed_scrapes: int, maximum_scrape_seconds: float, minimum_series: int) -> None:
+    if summary["failed_scrapes"] > maximum_failed_scrapes:
+        raise SystemExit("failed scrapes exceeded the soak budget")
+    if summary["maximum_series"] < minimum_series:
+        raise SystemExit("metrics payload did not contain the required series")
+    if summary["maximum_scrape_seconds"] > maximum_scrape_seconds:
+        raise SystemExit("scrape latency exceeded the soak budget")
+    if summary["rss_growth_bytes"] > maximum_rss_growth_bytes or summary["thread_growth"] > 2 or summary["descriptor_growth"] > 2:
+        raise SystemExit("sustained resource growth exceeded the soak budget")
 
 
 def main() -> None:
@@ -47,10 +72,15 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--maximum-rss-growth-bytes", type=int, default=16 * 1024 * 1024)
+    parser.add_argument("--maximum-failed-scrapes", type=int, default=0)
+    parser.add_argument("--maximum-scrape-seconds", type=float, default=3)
+    parser.add_argument("--minimum-series", type=int, default=1)
     args = parser.parse_args()
+    if args.duration_seconds <= 0 or args.interval_seconds <= 0 or args.concurrency <= 0:
+        parser.error("duration, interval, and concurrency must be positive")
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
-    rows = []
+    rows: list[dict[str, int | float]] = []
     deadline = time.monotonic() + args.duration_seconds
     while time.monotonic() < deadline:
         results: list[tuple[float, int, str]] = []
@@ -66,6 +96,7 @@ def main() -> None:
             {
                 "timestamp": int(time.time()),
                 "successful_scrapes": len(successful),
+                "failed_scrapes": args.concurrency - len(successful),
                 "maximum_scrape_seconds": max((r[0] for r in results), default=0),
                 "payload_bytes": max((r[1] for r in results), default=0),
                 "series": sum(1 for line in payload.splitlines() if line and not line.startswith("#")),
@@ -76,24 +107,15 @@ def main() -> None:
                 "file_descriptors": descriptors,
             }
         )
-        time.sleep(args.interval_seconds)
+        time.sleep(min(args.interval_seconds, max(0, deadline - time.monotonic())))
 
     with args.output.open("w", newline="") as output:
         writer = csv.DictWriter(output, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
-    warm = rows[len(rows) // 4 :] or rows
-    summary = {
-        "samples": len(rows),
-        "rss_growth_bytes": warm[-1]["rss_bytes"] - warm[0]["rss_bytes"],
-        "thread_growth": warm[-1]["threads"] - warm[0]["threads"],
-        "descriptor_growth": warm[-1]["file_descriptors"] - warm[0]["file_descriptors"],
-        "maximum_series": max(row["series"] for row in rows),
-        "maximum_scrape_seconds": max(row["maximum_scrape_seconds"] for row in rows),
-    }
+    summary = summarize(rows)
     args.output.with_suffix(".json").write_text(json.dumps(summary, indent=2) + "\n")
-    if summary["rss_growth_bytes"] > args.maximum_rss_growth_bytes or summary["thread_growth"] > 2 or summary["descriptor_growth"] > 2:
-        raise SystemExit("sustained resource growth exceeded the soak budget")
+    validate(summary, args.maximum_rss_growth_bytes, args.maximum_failed_scrapes, args.maximum_scrape_seconds, args.minimum_series)
 
 
 if __name__ == "__main__":
