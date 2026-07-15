@@ -9,6 +9,200 @@ VM and, later, on physical Tenstorrent hosts. Runtime validation that depends on
 `tt-kmd`, `/sys/class/tenstorrent`, `/dev/tenstorrent`, Docker, `kind`, or DRA
 APIs must be performed from the VM.
 
+## Setup And Run
+
+Run the commands in this section from the repository root. Real telemetry
+collection requires Linux with `tt-kmd` loaded and a readable
+`/sys/class/tenstorrent` tree. A development machine without Tenstorrent
+hardware can still run the service against an empty synthetic sysfs root.
+
+### 1. Install the prerequisites
+
+Install Git and `curl`, then install `uv`. `uv` creates the project virtual
+environment and obtains a compatible Python version when one is not already
+available:
+
+```bash
+git --version
+curl --version
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+If the installer asks you to update your `PATH`, follow its printed instruction
+or start a new shell. Then verify the installation:
+
+```bash
+uv --version
+```
+
+Other supported `uv` installation methods are documented at
+[docs.astral.sh/uv/getting-started/installation](https://docs.astral.sh/uv/getting-started/installation/).
+
+### 2. Clone the exporter
+
+```bash
+git clone https://github.com/varrahan/tt-metrics-exporter.git
+cd tt-metrics-exporter
+```
+
+### 3. Create the environment and install locked dependencies
+
+```bash
+uv sync --locked
+uv run tt-metrics-exporter --version
+```
+
+`uv sync --locked` creates `.venv`, installs the exporter, and installs the
+exact dependency set recorded by the repository lockfile.
+
+### 4. Select the telemetry source
+
+Inside the QEMU `ttsim` VM or on a physical Tenstorrent host, confirm that the
+driver has exposed at least one device and select the real sysfs root:
+
+```bash
+test -d /sys/class/tenstorrent
+find /sys/class/tenstorrent -maxdepth 1 -mindepth 1 -printf '%f\n'
+export TT_SYSFS_ROOT=/sys/class/tenstorrent
+```
+
+For development without Tenstorrent hardware, create and select an empty root.
+The exporter will run and expose its own health metrics, but the device list
+will be empty:
+
+```bash
+mkdir -p /tmp/tt-exporter-sysfs
+export TT_SYSFS_ROOT=/tmp/tt-exporter-sysfs
+```
+
+### 5. Inspect one snapshot
+
+Print one Prometheus snapshot:
+
+```bash
+uv run tt-metrics-exporter --sysfs-root "${TT_SYSFS_ROOT}" --once
+```
+
+Print the same collection as structured JSON:
+
+```bash
+uv run tt-metrics-exporter --sysfs-root "${TT_SYSFS_ROOT}" --once --json
+```
+
+### 6. Start the HTTP service
+
+```bash
+uv run tt-metrics-exporter \
+  --sysfs-root "${TT_SYSFS_ROOT}" \
+  --listen-address 127.0.0.1 \
+  --port 9400 \
+  --poll-interval 5 \
+  --max-snapshot-age 15 \
+  --shutdown-grace-period 10 \
+  --http-request-deadline 2 \
+  --log-format text \
+  --log-level info
+```
+
+On a production hardware node, add `--require-device` so readiness fails when
+no Tenstorrent device is discovered. Enable `--collect-hwmon` or
+`--collect-pcie-counters` only after those interfaces have been qualified on
+that platform.
+
+When DRA, janitor, and workload-profiler agents publish their node-local state,
+start the exporter with those optional roots as well:
+
+```bash
+uv run tt-metrics-exporter \
+  --sysfs-root /sys/class/tenstorrent \
+  --allocation-state-root /var/lib/tt-device-plugin/allocations \
+  --janitor-state-root /var/lib/tt-device-plugin/janitor \
+  --metalium-profiler-state-root /var/lib/tt-device-plugin/metalium-profiler \
+  --require-device \
+  --listen-address 127.0.0.1 \
+  --port 9400
+```
+
+### 7. Verify the running service
+
+Keep the exporter running and use a second terminal:
+
+```bash
+curl --fail --silent --show-error http://127.0.0.1:9400/healthz
+curl --fail --silent --show-error http://127.0.0.1:9400/readyz
+curl --fail --silent --show-error http://127.0.0.1:9400/metrics | sed -n '1,40p'
+curl --fail --silent --show-error http://127.0.0.1:9400/v1/devices \
+  | uv run python -m json.tool
+```
+
+`/readyz` can briefly return `503` before the first complete snapshot. A
+persistent `503` means a critical source is inaccessible, the snapshot is
+stale, or `--require-device` was set and no device was found. See the
+[operational contract](docs/info/OPERATIONAL_CONTRACT.md) for the exact
+semantics.
+
+### 8. Stop the service
+
+Press `Ctrl-C` in the exporter terminal. The process stops accepting new
+requests, completes its bounded graceful shutdown, and exits.
+
+### Run the production container
+
+Docker execution must happen inside the TTSim VM or on a physical Tenstorrent
+host so the real sysfs paths can be mounted. Build the image:
+
+```bash
+docker build -t tt-metrics-exporter:local .
+```
+
+Run it with a read-only root filesystem and read-only telemetry mounts:
+
+```bash
+docker run --rm --name tt-metrics-exporter \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --mount type=bind,src=/sys/class/tenstorrent,dst=/mnt/tt/sysfs/class/tenstorrent,readonly \
+  --mount type=bind,src=/sys/devices,dst=/mnt/tt/sysfs/devices,readonly \
+  --publish 127.0.0.1:9400:9400 \
+  tt-metrics-exporter:local \
+  --sysfs-root /mnt/tt/sysfs/class/tenstorrent \
+  --require-device \
+  --listen-address 0.0.0.0 \
+  --port 9400
+```
+
+Verify the four HTTP endpoints with the commands from step 7. Press `Ctrl-C`
+to stop and remove the container.
+
+### Deploy to Kubernetes
+
+The production overlay is intentionally configured with an example registry
+and image digest. Do not apply it unchanged. First publish the qualified image,
+replace `newName` and `digest` in
+`deploy/kubernetes/overlays/production/kustomization.yaml`, and prepare every
+selected Tenstorrent node:
+
+```bash
+sudo mkdir -p /var/lib/tt-device-plugin/allocations \
+  /var/lib/tt-device-plugin/janitor \
+  /var/lib/tt-device-plugin/metalium-profiler
+kubectl label node <node-name> tenstorrent.com/accelerator=true
+```
+
+Render, review, and apply the production resources:
+
+```bash
+kubectl kustomize deploy/kubernetes/overlays/production
+kubectl apply -k deploy/kubernetes/overlays/production
+kubectl rollout status daemonset/tt-metrics-exporter --timeout=10m
+kubectl get pods -l app.kubernetes.io/name=tt-metrics-exporter -o wide
+```
+
+The default NetworkPolicy permits ingress only from the `monitoring` namespace.
+For monitoring resources and complete rollout/NetworkPolicy qualification, see
+[`docs/info/KUBERNETES.md`](docs/info/KUBERNETES.md).
+
 Current implementation scope:
 
 - Scan `/sys/class/tenstorrent` for device entries.
@@ -85,48 +279,6 @@ uv run scripts/ci/run_tests.py
 uv run ruff check src tests scripts
 uv run python -m build --wheel --no-isolation --outdir dist
 uv run python scripts/ci/check_docs.py
-```
-
-From inside the VM, print one scrape from the actual sysfs root:
-
-```bash
-PYTHONPATH=src python3 -m tt_metrics_exporter \
-  --sysfs-root /sys/class/tenstorrent \
-  --once
-```
-
-Print one structured device inventory:
-
-```bash
-PYTHONPATH=src python3 -m tt_metrics_exporter \
-  --sysfs-root /sys/class/tenstorrent \
-  --once \
-  --json
-```
-
-Run the HTTP exporter from inside the VM:
-
-```bash
-PYTHONPATH=src python3 -m tt_metrics_exporter \
-  --sysfs-root /sys/class/tenstorrent \
-  --max-snapshot-age 15 \
-  --shutdown-grace-period 10 \
-  --http-request-deadline 2 \
-  --log-format text \
-  --log-level info \
-  --port 9400
-```
-
-Include node-local DRA and janitor state when those agents write safe state
-files:
-
-```bash
-PYTHONPATH=src python3 -m tt_metrics_exporter \
-  --sysfs-root /sys/class/tenstorrent \
-  --allocation-state-root /var/lib/tt-device-plugin/allocations \
-  --janitor-state-root /var/lib/tt-device-plugin/janitor \
-  --metalium-profiler-state-root /var/lib/tt-device-plugin/metalium-profiler \
-  --port 9400
 ```
 
 ## TT-Metalium Workload Samples
