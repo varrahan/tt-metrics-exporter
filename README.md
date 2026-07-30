@@ -205,43 +205,40 @@ The default NetworkPolicy permits ingress only from the `monitoring` namespace.
 For monitoring resources and complete rollout/NetworkPolicy qualification, see
 [`docs/info/KUBERNETES.md`](docs/info/KUBERNETES.md).
 
-Current implementation scope:
+Current data collection scope:
 
-- Scan `/sys/class/tenstorrent` for device entries.
-- Read tolerant sysfs telemetry files such as `memory_usage`, architecture,
-  board type, health, and optional Tensix count files when present.
-- Read documented `tt-kmd` firmware telemetry files such as `tt_card_type`,
-  `tt_aiclk`, `tt_heartbeat`, firmware versions, ASIC ID, and thermal trip
-  count when ARC firmware exposes those attributes.
-- Optionally read Tenstorrent `hwmon` sensor inputs with `--collect-hwmon`
-  when the driver and environment have been validated for safe sensor reads.
-- Expose Linux character-device identity from `dev` and `uevent`.
-- Expose PCI BDF, bound driver, identity, class, NUMA node, IOMMU group, link
-  speed/width, reset method, and non-empty PCI resource ranges from the backing
-  `device/` sysfs directory.
-- Expose runtime power-management state and counters from `power/`.
-- Report actual memory usage, total/free/available capacity, memory type,
-  memory bandwidth, and controller topology when safe files expose those
-  values.
-- Report actual Tensix usage, total/available counts, mesh dimensions,
-  topology, and active regions when safe driver, runtime, or profiler files
-  expose those values.
-- Report fault, reset-required, OOM, and hang counters when safe driver or
-  node-local health files expose those values.
-- Report scale-out and fabric link state from safe link directories such as
-  `scaleout_links/`, `ethernet_links/`, or `fabric_links/`.
-- Optionally read Kubernetes DRA allocation ownership from
-  `--allocation-state-root` and hardware janitor state from
-  `--janitor-state-root`.
-- Read fresh, atomically published TT-Metalium workload profiler samples from
-  `--metalium-profiler-state-root`, expose per-workload core occupancy, and
-  ignore samples after a configurable freshness window.
-- Render Prometheus text metrics including `tt_memory_used_bytes`,
-  `tt_memory_total_bytes`, `tt_tensix_cores_used`, and
-  `tt_tensix_cores_available` only when a safe source reports those values.
-- Cache telemetry in a polling loop and serve `/metrics` and `/v1/devices` on
-  port `9400`, with shallow liveness at `/healthz` and snapshot readiness at
-  `/readyz`.
+Discovery:
+
+- Scan `/sys/class/tenstorrent` and create one device record per entry.
+- Read Linux character-device identity from `<device>/dev` and `<device>/uevent`, exposing `major`, `minor`, `DEVNAME`, and derived `/dev/<name>`.
+
+PCI/device identity and topology:
+
+- Read PCI and bridge identity from `<device>/device` and its siblings, including `bdf` (`PCI_SLOT_NAME`), `driver`, `vendor_id`, `device_id`, `class_id`, `revision`, `subsystem_vendor_id`, `subsystem_device_id`, `numa_node`, `iommu_group`, `current_link_speed`, `current_link_width`, `max_link_speed`, `max_link_width`, and `reset_method`.
+- Read PCI BAR/resource layout from `<device>/device/resource` using `start/end/flags` ranges, ignoring empty/invalid ranges.
+
+Safe sysfs fields collected when present:
+
+- Identity/static descriptors from sysfs aliases: `architecture`, `arch`, `chip_arch`, `chip_architecture`, `device_arch`, `chip`, `board_type`, `board`, `card_type`, `card_series`, `product_name`, `health`, `status`, and `device_status`.
+- Firmware telemetry: `tt_aiclk`, `tt_axiclk`, `tt_arcclk`, `tt_heartbeat`, `tt_therm_trip_count`, `tt_serial`, `tt_card_type`, `tt_asic_id`, `tt_fw_bundle_ver`, `tt_m3app_fw_ver`, `tt_m3bl_fw_ver`, `tt_arc_fw_ver`, `tt_eth_fw_ver`, and `tt_ttflash_ver`.
+- Runtime power fields from `power/`: `runtime_status`, `control`, `runtime_enabled`, `runtime_active_time`, `runtime_suspended_time`, `runtime_usage`, `runtime_active_kids`, `autosuspend_delay_ms`.
+- Memory fields from sysfs: `memory_usage`, `dram_usage`, `tt_memory_usage`, `memory_used_bytes`, `dram_used_bytes`, `allocated_memory_bytes`, `memory_total_bytes`, `memory_capacity_bytes`, `memory_size_bytes`, `dram_total_bytes`, `dram_capacity_bytes`, `dram_size_bytes`, `memory_free_bytes`, `dram_free_bytes`, `memory_available_bytes`, `dram_available_bytes`, `memory_bandwidth_bytes_per_second`, `dram_bandwidth_bytes_per_second`, `gddr_bandwidth_bytes_per_second`, `memory_type`, `dram_type`, `gddr_type`, `gddr_controller_layout`, `dram_controller_layout`, `memory_controller_layout`, `gddr_controller_count`, `dram_controller_count`, `memory_controller_count`, `gddr_controllers_per_asic`, `dram_controllers_per_asic`, `memory_controllers_per_asic`, `dram_channel_count`, `gddr_channel_count`, `memory_channel_count`.
+- Tensix/core fields from sysfs aliases: `tensix_cores_used`, `tensix_used`, `active_tensix_cores`, `tensix_cores_available`, `tensix_available`, `available_tensix_cores`, `tensix_cores_total`, `total_tensix_cores`, `tensix_total`, `tensix_core_count`, `tensix_mesh_rows`, `tensix_grid_rows`, `tensix_rows`, `core_grid_rows`, `tensix_mesh_cols`, `tensix_grid_cols`, `tensix_cols`, `core_grid_cols`, `tensix_mesh`, `tensix_grid`, `core_grid`, `worker_grid`, `tensix_topology`, `tensix_layout`, `tensix_active_regions`, `active_core_ranges`, `active_core_grids`.
+- Health detail counters from sysfs aliases: `fault_code`, `device_fault_code`, `last_fault_code`, `fault_reason`, `device_fault_reason`, `last_fault_reason`, `reset_reason`, `reset_required`, `needs_reset`, `requires_reset`, `oom_fault_count`, `oom_count`, `out_of_memory_count`, `hang_fault_count`, `hang_count`, and `device_hang_count`.
+- Interconnect/link state from directories `scaleout_links/`, `ethernet_links/`, `fabric_links/` using fields `type`, `link_type`, `state`, `status`, `peer`, `remote`, `remote_device`, `remote_bdf`, `speed_gbps`, `link_speed_gbps`, `rate_gbps`, `ring_id`, and `ring`.
+
+Optional sources (disabled unless configured):
+
+- `--collect-hwmon`: reads safe hwmon files from `hwmon/*` and `device/hwmon/*` input files and emits normalized sensor value records.
+- `--collect-pcie-counters`: reads safe counters under `pcie_perf_counters/`.
+- `--allocation-state-root`: reads node-local DRA-style ownership metadata: `claim_namespace`, `claim_name`, `claim_uid`, `pod_namespace`, `pod_name`, `container_name`.
+- `--janitor-state-root`: reads node-local health/ops metadata: `state`, `quarantine_reason`, `last_scrub_status`, `last_reset_status`, `scrub_count`, `reset_count`, `last_scrub_timestamp_seconds`, and `last_reset_timestamp_seconds`.
+- `--metalium-profiler-state-root`: reads TT-Metalium profiler snapshots from `v2/workloads/<pod-uid>/<device-key>/snapshot.state` (legacy `*.state` files are also supported during migration). Parsed fields include `workload_id`, `pod_namespace`, `pod_name`, `container_name`, `active`, `programs_observed`, `tensix_cores_used`, `tensix_cores_total`, and `sample_timestamp_seconds`.
+
+Derived outputs:
+
+- Polling loop renders Prometheus metrics via `/metrics` on port `9400` and structured JSON snapshots via `/v1/devices`.
+- Exporter liveness/readiness endpoints are `/healthz` and `/readyz`, and both are local HTTP reporting endpoints.
 
 The workload-side TTNN publisher lives at
 `integrations/ttnn/metalium_profiler_publisher.py`. Kubernetes DaemonSet,
