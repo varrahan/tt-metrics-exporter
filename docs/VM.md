@@ -429,7 +429,7 @@ runs the `tt-kmd`, kind, DRA API, and pod device-visibility checks:
 
 ```bash
 ./vm/sync_test_vm.sh
-make -C test/vm vm-validate
+make -C tests/vm vm-validate
 ```
 
 If you prefer to validate against the existing in-VM layout from this repo, run:
