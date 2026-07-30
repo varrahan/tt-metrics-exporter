@@ -1,1 +1,0 @@
-verify_ttsim_qemu.sh
