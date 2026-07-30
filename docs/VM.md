@@ -6,6 +6,48 @@ work inside the QEMU `ttsim` Ubuntu VM. The authoritative setup is Tenstorrent's
 The commands below follow that lesson; project-specific Kubernetes checks are
 clearly separated from the simulator baseline.
 
+## VM assets and baseline assumptions
+
+This VM area is reserved for host-independent `ttsim` launch/verification
+material used across DRA driver and telemetry workflows, while component source
+and packaging stay under their owning `src/` paths.
+
+The authoritative `ttsim` baseline is:
+
+- use the `stable-11.0-ttsim` QEMU fork
+- use `libttsim_wh.so` from the documented `v1.8.4` setup
+- launch with TCG (`-cpu max`) and a `32 MiB` BAR4
+- use `ttkmd-2.3.0` and no newer KMD
+- do **not** enable `-enable-kvm` or `-accel kvm`
+
+For simulator profile checks, run:
+
+```bash
+python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh.so
+python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh_x2.so --require-min 1
+python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh_x8.so --require-min 4
+```
+
+The `_x2` and `_x8` profiles describe simulated chip configurations but do not
+translate directly to documented QEMU PCI-function counts. The supported bridge
+launch path uses the single-chip `libttsim_wh.so`; treat multi-chip
+QEMU enumeration as unsupported until Tenstorrent documents it.
+
+Do not use `tt-smi` as the VM health check. Use:
+
+- QEMU monitor plus `lspci`
+- `tt-kmd` sysfs / `/dev/tenstorrent/0`
+- exporter telemetry/state-path checks
+
+Optional TT-Metalium notes:
+
+- use `/home/ubuntu/.venvs/tt-metalium` for isolated experiments
+- do not use `tt-installer` for this VM path
+- do not rely on wheel-only profiler data for live physical-device workload
+  tracing; source builds with Tracy are required for full path
+- set `TT_METAL_PROFILER_DISABLE_DUMP_TO_FILES=1` when publishing
+  process-local snapshots to `/var/lib/tt-device-plugin/metalium-profiler`
+
 The VM is launched with a custom QEMU binary and a simulated Tenstorrent device:
 
 - Guest OS image: Ubuntu 24.04 minimal cloud image

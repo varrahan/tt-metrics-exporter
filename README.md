@@ -2,7 +2,7 @@
 
 This repository contains the Python Tenstorrent metrics exporter. Its telemetry
 source and state-file contracts are described in
-[`docs/guides/TT_METRICS_EXPORTER.md`](docs/guides/TT_METRICS_EXPORTER.md).
+[`docs/guides.md`](docs/guides.md).
 
 The exporter is intended to run as a node-local DaemonSet in the QEMU `ttsim`
 VM or on physical Tenstorrent hosts. Runtime validation that depends on
@@ -140,7 +140,7 @@ curl --fail --silent --show-error http://127.0.0.1:9400/v1/devices \
 `/readyz` can briefly return `503` before the first complete snapshot. A
 persistent `503` means a critical source is inaccessible, the snapshot is
 stale, or `--require-device` was set and no device was found. See the
-[operational contract](docs/info/OPERATIONAL_CONTRACT.md) for the exact
+[operational contract](docs/info.md) for the exact
 semantics.
 
 ### 8. Stop the service
@@ -203,7 +203,7 @@ kubectl get pods -l app.kubernetes.io/name=tt-metrics-exporter -o wide
 
 The default NetworkPolicy permits ingress only from the `monitoring` namespace.
 For monitoring resources and complete rollout/NetworkPolicy qualification, see
-[`docs/info/KUBERNETES.md`](docs/info/KUBERNETES.md).
+[`docs/info.md`](docs/info.md).
 
 Current data collection scope:
 
@@ -254,7 +254,7 @@ Capacity, memory, core, and bandwidth values must come from safe driver,
 firmware, sysfs, or TT-Metalium profiler data.
 
 The stable liveness, readiness, snapshot, and critical-source behavior is
-defined in [`docs/info/OPERATIONAL_CONTRACT.md`](docs/info/OPERATIONAL_CONTRACT.md).
+defined in [`docs/info.md`](docs/info.md).
 
 The current QEMU `ttsim` VM may not expose firmware telemetry attributes. In
 that case the exporter still reports device, PCI, BAR, and power-management
@@ -352,7 +352,7 @@ container.
 Production publication is best-effort and rate-bounded by default so telemetry
 failures do not terminate the workload. DRA must mount only the workload's v2
 subtree and delete it during Unprepare; see
-[`docs/info/STATE_INGESTION_SECURITY.md`](docs/info/STATE_INGESTION_SECURITY.md).
+[`docs/info.md`](docs/info.md).
 
 Then scrape:
 
