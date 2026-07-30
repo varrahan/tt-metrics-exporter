@@ -85,6 +85,38 @@ dist/
 # Local runtime qualification evidence
 /evidence/
 
+# Secrets and local credentials
+.env
+.env.*
+*.pem
+*.key
+*.pub
+*.ppk
+*.crt
+*.cer
+*.p12
+*.pfx
+*id_rsa*
+*id_ed25519*
+*secret*
+*credentials*
+
 # Temporary md files to guide agents
 docs/temp/
 docs/temp/*
+
+# Developer-only caches and local tooling
+/.idea/
+/.vscode/
+.python-version
+.mypy_cache/
+.pytest_cache/
+.tox/
+/.nox/
+.ruff_cache/
+.code-review-graph/
+graph.db
+
+# Runtime scratch files
+*.pid
+*.sock

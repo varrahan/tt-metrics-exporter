@@ -428,7 +428,14 @@ If this repository is available inside the VM, the checked-in validation wrapper
 runs the `tt-kmd`, kind, DRA API, and pod device-visibility checks:
 
 ```bash
+./vm/sync_test_vm.sh
 make -C test/vm vm-validate
+```
+
+If you prefer to validate against the existing in-VM layout from this repo, run:
+
+```bash
+make -C vm vm-validate
 ```
 
 Use the inline commands below when debugging a specific validation step.
