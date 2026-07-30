@@ -8,6 +8,7 @@ This documentation is organized to reduce duplication:
 - [JSON schema](schema/telemetry.tenstorrent.com-v1.schema.json)
 
 Core concepts:
+
 - The exporter reads node-local, safe data sources (not `tt-smi`).
 - Runtime contracts are defined in `info.md`.
 - Source collection and workloads are described in `guides.md`.
