@@ -11,5 +11,8 @@ LOCAL_TEST_VMS="${SCRIPT_DIR}/../test/vm"
 
 SSH_OPTS=(-i "$VM_KEY" -o StrictHostKeyChecking=no -p "$VM_PORT")
 
+SSH_OPTS=( -i "$VM_KEY" -o StrictHostKeyChecking=no -p "$VM_PORT" )
+SCP_OPTS=( -i "$VM_KEY" -o StrictHostKeyChecking=no -P "$VM_PORT" )
+
 ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "rm -rf '$VM_REPO/test/vm' && mkdir -p '$VM_REPO/test'"
-scp "${SSH_OPTS[@]}" -r "$LOCAL_TEST_VMS" "$VM_USER@$VM_HOST:$VM_REPO/test/"
+scp "${SCP_OPTS[@]}" -r "$LOCAL_TEST_VMS" "$VM_USER@$VM_HOST:$VM_REPO/test/"
