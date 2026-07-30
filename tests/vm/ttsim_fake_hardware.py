@@ -169,25 +169,6 @@ def write_workload_sample(state_root: Path, device_id: str, pod_uid: str, progra
     _write_value(state_root / "v2" / "workloads" / pod_uid / device_id / "snapshot.state", payload)
 
 
-def write_workload_sample(state_root: Path, device_id: str, pod_uid: str, program_count: int, total_cores: int, cores_used: int) -> None:
-    payload = "\n".join(
-        [
-            "schema_version=2",
-            "workload_id=synthetic",
-            f"active=1",
-            f"programs_observed={program_count}",
-            f"tensix_cores_used={cores_used}",
-            f"tensix_cores_total={total_cores}",
-            f"sample_timestamp_seconds={int(time.time())}",
-            "pod_namespace=ttsim",
-            "pod_name=synthetic-pod",
-            "container_name=synthetic-container",
-            "",
-        ]
-    )
-    _write_value(state_root / "v2" / "workloads" / pod_uid / device_id / "snapshot.state", payload)
-
-
 def simulate_workloads(
     state_root: Path,
     device_count: int,

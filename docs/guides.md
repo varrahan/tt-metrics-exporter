@@ -534,7 +534,7 @@ runtime-chip-to-exporter-device mapping, impossible core-count rejection, and
 required profiler environment validation.
 
 Setup and test commands are maintained in the repository
-[README](../../README.md#build-and-test).
+[README](../README.md#build-and-test).
 
 ## 14. Runtime and simulator boundary
 
@@ -576,7 +576,7 @@ is:
 
 The exporter runs node-local, discovers Tenstorrent devices, and exposes both
 Prometheus metrics and structured JSON. This guide records the safe telemetry
-sources and node-state file formats. Use the repository [README](../../README.md)
+sources and node-state file formats. Use the repository [README](../README.md)
 for setup, test, container, and deployment commands.
 
 ## Runtime Sources
