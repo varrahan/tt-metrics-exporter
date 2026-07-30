@@ -361,6 +361,44 @@ curl http://127.0.0.1:9400/metrics
 curl http://127.0.0.1:9400/v1/devices
 ```
 
+## Repository structure quick reference
+
+### Tests
+
+The test tree is split by scope:
+
+- `tests/unit/` has deterministic contracts for parsing, collection, rendering, HTTP/runtime behavior, and publisher state handling.
+- `tests/integration/` exercises the packaged service through subprocesses, sockets, signals, HTTP, and lifecycle behavior.
+- `tests/fixtures/` contains bounded regression inputs.
+- `tests/support/` contains helper utilities and is not collected by `pytest`.
+
+Run the full suite with:
+
+```bash
+uv run scripts/ci/run_tests.py
+```
+
+For a faster loop:
+
+```bash
+uv run pytest tests/unit
+```
+
+### Scripts
+
+Repository scripts are not shipped with the exporter package and are used for
+repo-level validation and operations.
+
+- `scripts/ci/` contains host checks used by CI and container validation.
+- `scripts/validation/` validates images, manifests, monitoring, rollouts, NetworkPolicy, soak behavior, and VM qualification.
+- `scripts/operations/` contains opt-in workload and soak tooling for a running exporter.
+
+`scripts/validation/vm.sh` is the consolidated TTSim entry path. Its default
+five-minute soak is smoke qualification; `SOAK_DURATION_SECONDS=259200` enables
+the 72-hour physical-hardware release gate.
+
+### TT-Metalium profiler package
+
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
