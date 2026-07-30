@@ -1,0 +1,1 @@
+validate_foundation.sh

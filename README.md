@@ -9,6 +9,8 @@ VM or on physical Tenstorrent hosts. Runtime validation that depends on
 `tt-kmd`, `/sys/class/tenstorrent`, `/dev/tenstorrent`, Docker, `kind`, or DRA
 APIs must be performed from the VM.
 
+QEMU VM setup and launch guidance is in [`docs/VM.md`](docs/VM.md).
+
 ## Setup And Run
 
 Run the commands in this section from the repository root. Real telemetry
