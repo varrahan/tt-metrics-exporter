@@ -7,7 +7,7 @@ VM_USER="${VM_USER:-ubuntu}"
 VM_KEY="${VM_SSH_KEY:-$HOME/.ssh/ttsim_vm_ed25519}"
 VM_REPO="${VM_REPO_PATH:-/home/ubuntu/tt-telemetry}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOCAL_TEST_VMS="${SCRIPT_DIR}"
+LOCAL_TEST_VMS="${SCRIPT_DIR}/.."
 
 SSH_OPTS=(-i "$VM_KEY" -o StrictHostKeyChecking=no -p "$VM_PORT")
 
