@@ -50,7 +50,7 @@ Use the checked-in launcher, which implements the documented TCG command and
 binds SSH forwarding to localhost:
 
 ```bash
-./vm/launch_ttsim_qemu.sh
+./tests/vm/launch_ttsim_qemu.sh
 ```
 
 Do not add `-enable-kvm`, `-accel kvm`, or `-cpu host`. Tenstorrent documents
@@ -68,7 +68,7 @@ booting the VM:
 
 ```bash
 cd /home/varrahan/development/software/tt-exporter
-python3 vm/check_ttsim_lib.py "$HOME/sim/libttsim_wh.so"
+python3 tests/vm/check_ttsim_lib.py "$HOME/sim/libttsim_wh.so"
 ```
 
 Do not infer guest PCI counts from `_x2` or `_x8` profile names. The documented
@@ -111,7 +111,7 @@ the Ubuntu 24.04 minimal image and `cidata` seed under
 `$HOME/sim/ttsim-qemu/`, then launch with:
 
 ```bash
-./vm/launch_ttsim_qemu.sh
+./tests/vm/launch_ttsim_qemu.sh
 ```
 
 Initial TCG boot normally takes about one minute. Follow progress with:
@@ -138,7 +138,7 @@ that the documented simulator does not implement. Run the complete host/guest
 verification with:
 
 ```bash
-./vm/verify_ttsim_qemu.sh
+./tests/vm/verify_ttsim_qemu.sh
 ```
 
 Do not install or run `tt-smi` for simulator validation, telemetry scraping, or
@@ -241,7 +241,7 @@ The launcher uses QEMU's documented `-daemonize` and PID-file options, so no
 `tmux` session is required:
 
 ```bash
-./vm/launch_ttsim_qemu.sh
+./tests/vm/launch_ttsim_qemu.sh
 cat "$HOME/sim/ttsim-qemu/vm.pid"
 tail -f /tmp/ttsim-qemu-serial.log
 ```
@@ -428,14 +428,14 @@ If this repository is available inside the VM, the checked-in validation wrapper
 runs the `tt-kmd`, kind, DRA API, and pod device-visibility checks:
 
 ```bash
-./vm/sync_test_vm.sh
+./tests/vm/sync_test_vm.sh
 make -C tests/vm vm-validate
 ```
 
 If you prefer to validate against the existing in-VM layout from this repo, run:
 
 ```bash
-make -C vm vm-validate
+make -C tests/vm vm-validate
 ```
 
 Use the inline commands below when debugging a specific validation step.

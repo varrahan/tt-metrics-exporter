@@ -90,9 +90,9 @@ BDF device numbers through `libttsim_pci_config_rd32()`, and fails if fewer than
 the requested number of simulated cards are host-visible.
 
 ```bash
-python3 vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh.so
-python3 vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh_x2.so --require-min 1
-python3 vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh_x8.so --require-min 4
+python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh.so
+python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh_x2.so --require-min 1
+python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh_x8.so --require-min 4
 ```
 
 Current v1.8.4 host-library observation: `libttsim_wh_x2.so` reports one PCI
