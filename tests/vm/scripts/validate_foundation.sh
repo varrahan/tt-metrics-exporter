@@ -8,9 +8,9 @@ KIND_CLUSTER="${KIND_CLUSTER:-agent-smoke}"
 KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.34.0}"
 KIND_WAIT="${KIND_WAIT:-120s}"
 KUBECTL_CONTEXT="${KUBECTL_CONTEXT:-kind-${KIND_CLUSTER}}"
-TT_DEVICE_PATH="${TT_DEVICE_PATH:-/dev/tenstorrent}"
 CLEANUP_KIND_CLUSTER="${CLEANUP_KIND_CLUSTER:-1}"
 KIND_ONLY=0
+readonly TT_DEVICE_PATH="/dev/tenstorrent"
 
 usage() {
   cat <<'EOF'
@@ -21,8 +21,6 @@ Environment:
   KIND_NODE_IMAGE       kind node image, default: kindest/node:v1.34.0
   KIND_WAIT             kind readiness timeout, default: 120s
   KUBECTL_CONTEXT       kubectl context, default: kind-${KIND_CLUSTER}
-  TT_DEVICE_PATH        Tenstorrent device directory or device, default: /dev/tenstorrent
-  TT_KMD_MODULE         Tenstorrent kernel module path, default: /home/ubuntu/tt-kmd/tenstorrent.ko
   CLEANUP_KIND_CLUSTER  delete a cluster created by this script on success, default: 1
 EOF
 }

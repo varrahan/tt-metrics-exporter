@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-TT_DEVICE_PATH="${TT_DEVICE_PATH:-/dev/tenstorrent}"
-TT_KMD_MODULE="${TT_KMD_MODULE:-/home/ubuntu/tt-kmd/tenstorrent.ko}"
+readonly TT_DEVICE_PATH="/dev/tenstorrent"
+readonly TT_KMD_MODULE="/home/ubuntu/tt-kmd/tenstorrent.ko"
 
 log() {
   printf '[tt-kmd] %s\n' "$*"
