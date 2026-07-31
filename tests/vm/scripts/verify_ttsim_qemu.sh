@@ -2,9 +2,13 @@
 
 set -euo pipefail
 
-vm_root="${TTSIM_VM_ROOT:-$HOME/sim/ttsim-qemu}"
-ssh_port="${TTSIM_SSH_PORT:-2222}"
-ssh_key="${TTSIM_SSH_KEY:-$HOME/.ssh/ttsim_vm_ed25519}"
+readonly TTSIM_VM_ROOT="$HOME/sim/ttsim-qemu"
+readonly TTSIM_SSH_PORT=2222
+readonly TTSIM_SSH_KEY="$HOME/.ssh/ttsim_vm_ed25519"
+
+vm_root="$TTSIM_VM_ROOT"
+ssh_port="$TTSIM_SSH_PORT"
+ssh_key="$TTSIM_SSH_KEY"
 pidfile="$vm_root/vm.pid"
 
 if [[ ! -r "$pidfile" ]] || ! kill -0 "$(<"$pidfile")" 2>/dev/null; then

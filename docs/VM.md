@@ -23,9 +23,9 @@ The authoritative `ttsim` baseline is:
 For simulator profile checks, run:
 
 ```bash
-python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh.so
-python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh_x2.so --require-min 1
-python3 tests/vm/check_ttsim_lib.py /home/varrahan/sim/libttsim_wh_x8.so --require-min 4
+python3 tests/vm/check_ttsim_lib.py "$HOME/sim/libttsim_wh.so"
+python3 tests/vm/check_ttsim_lib.py "$HOME/sim/libttsim_wh_x2.so" --require-min 1
+python3 tests/vm/check_ttsim_lib.py "$HOME/sim/libttsim_wh_x8.so" --require-min 4
 ```
 
 The `_x2` and `_x8` profiles describe simulated chip configurations but do not
@@ -109,7 +109,7 @@ For multi-card simulator work, verify the selected `libttsim` profile before
 booting the VM:
 
 ```bash
-cd /home/varrahan/development/software/tt-exporter
+cd "$(git rev-parse --show-toplevel)"
 python3 tests/vm/check_ttsim_lib.py "$HOME/sim/libttsim_wh.so"
 ```
 
@@ -266,7 +266,7 @@ Download and verify the current TT system firmware bundle inside the VM when
 debugging firmware compatibility:
 
 ```bash
-ssh -i /home/varrahan/.ssh/ttsim_vm_ed25519 -p 2222 ubuntu@127.0.0.1 \
+ssh -i "$HOME/.ssh/ttsim_vm_ed25519" -p 2222 ubuntu@127.0.0.1 \
   'bash -lc "cd /home/ubuntu && curl -L -o fw_pack-19.11.0.fwbundle https://github.com/tenstorrent/tt-system-firmware/releases/download/v19.11.0/fw_pack-19.11.0.fwbundle && echo '\''500b5af0d7fba867fed443b59bcefae837bd91e5efdb73fccc2005cecb18bf2a  fw_pack-19.11.0.fwbundle'\'' | sha256sum -c -"'
 ```
 
@@ -297,23 +297,23 @@ Graceful shutdown through SSH is preferred over signaling the QEMU PID.
 The username and SSH keys are controlled by the cloud-init seed ISO at:
 
 ```text
-/home/varrahan/sim/ttsim-qemu/seed.iso
+$HOME/sim/ttsim-qemu/seed.iso
 ```
 
 Inspect it from the host when the VM is not relying on a mounted seed directory.
 Prefer `isoinfo` when it is available, because it does not require sudo:
 
 ```bash
-isoinfo -R -i /home/varrahan/sim/ttsim-qemu/seed.iso -f
-isoinfo -R -i /home/varrahan/sim/ttsim-qemu/seed.iso -x /user-data
-isoinfo -R -i /home/varrahan/sim/ttsim-qemu/seed.iso -x /meta-data
+isoinfo -R -i "$HOME/sim/ttsim-qemu/seed.iso" -f
+isoinfo -R -i "$HOME/sim/ttsim-qemu/seed.iso" -x /user-data
+isoinfo -R -i "$HOME/sim/ttsim-qemu/seed.iso" -x /meta-data
 ```
 
 If `isoinfo` is not available, mount the ISO temporarily:
 
 ```bash
 mkdir -p /tmp/ttsim-seed
-sudo mount -o loop /home/varrahan/sim/ttsim-qemu/seed.iso /tmp/ttsim-seed
+sudo mount -o loop "$HOME/sim/ttsim-qemu/seed.iso" /tmp/ttsim-seed
 sed -n '1,240p' /tmp/ttsim-seed/user-data 2>/dev/null || true
 sed -n '1,120p' /tmp/ttsim-seed/meta-data 2>/dev/null || true
 sudo umount /tmp/ttsim-seed
@@ -329,7 +329,7 @@ ssh_authorized_keys:
 ```
 
 The current seed image creates the `ubuntu` user with passwordless sudo,
-authorizes `/home/varrahan/.ssh/ttsim_vm_ed25519.pub`, and disables SSH password
+authorizes `$HOME/.ssh/ttsim_vm_ed25519.pub`, and disables SSH password
 authentication:
 
 ```yaml
@@ -491,13 +491,8 @@ verification section first.
 ```bash
 KINDEST_NODE_IMAGE="${KINDEST_NODE_IMAGE:-kindest/node:v1.34.0}"
 
-TT_DEVICE_PATH="${TT_DEVICE_PATH:-/dev/tenstorrent}"
-if [ ! -e "$TT_DEVICE_PATH" ]; then
-  TT_DEVICE_PATH="$(find /dev -maxdepth 1 -name 'tenstorrent*' -print | sort | head -n 1)"
-fi
-test -n "$TT_DEVICE_PATH"
-test -e "$TT_DEVICE_PATH"
-find "$TT_DEVICE_PATH" -maxdepth 1 -type c -print -quit | grep -q .
+test -e /dev/tenstorrent
+find /dev/tenstorrent -maxdepth 1 -type c -print -quit | grep -q .
 
 cat >/tmp/ttsim-kind.yaml <<EOF
 kind: Cluster
@@ -506,8 +501,8 @@ nodes:
 - role: control-plane
   image: ${KINDEST_NODE_IMAGE}
   extraMounts:
-  - hostPath: ${TT_DEVICE_PATH}
-    containerPath: ${TT_DEVICE_PATH}
+  - hostPath: /dev/tenstorrent
+    containerPath: /dev/tenstorrent
     propagation: HostToContainer
 EOF
 
@@ -517,8 +512,8 @@ kubectl --context kind-agent-smoke version
 kubectl --context kind-agent-smoke api-resources --api-group=resource.k8s.io
 kubectl --context kind-agent-smoke api-resources --api-group=resource.k8s.io | grep --color=never -E '^(deviceclasses|resourceclaims|resourceslices)[[:space:]]'
 
-docker exec agent-smoke-control-plane test -e "$TT_DEVICE_PATH"
-docker exec agent-smoke-control-plane find "$TT_DEVICE_PATH" -maxdepth 1 -type c -ls
+docker exec agent-smoke-control-plane test -e /dev/tenstorrent
+docker exec agent-smoke-control-plane find /dev/tenstorrent -maxdepth 1 -type c -ls
 ```
 
 Verify that a pod can see the mounted device path through a `hostPath` mount:
@@ -536,16 +531,16 @@ spec:
       containers:
       - name: check
         image: busybox:1.36
-        command: ["sh", "-c", "find ${TT_DEVICE_PATH} -maxdepth 1 -type c -print -quit | grep -q ."]
+        command: ["sh", "-c", "find /dev/tenstorrent -maxdepth 1 -type c -print -quit | grep -q ."]
         securityContext:
           privileged: true
         volumeMounts:
         - name: ttsim-device
-          mountPath: ${TT_DEVICE_PATH}
+          mountPath: /dev/tenstorrent
       volumes:
       - name: ttsim-device
         hostPath:
-          path: ${TT_DEVICE_PATH}
+          path: /dev/tenstorrent
           type: Directory
 EOF
 
@@ -558,8 +553,8 @@ kind delete cluster --name agent-smoke
 
 If `tt-kmd` exposes multiple device paths, repeat the `extraMounts`, `hostPath`,
 and `volumeMounts` entries for each path needed by the workflow under test. If
-the guest image uses a non-`/dev/tenstorrent*` device name, set
-`TT_DEVICE_PATH` explicitly before creating the cluster.
+the guest image uses a non-`/dev/tenstorrent*` device path, update the mount
+and check paths in this section to that path before creating the cluster.
 
 ---
 
@@ -624,16 +619,16 @@ Do not boot the same mutable qcow2 image in more than one QEMU process at the sa
 For multiple concurrent VM instances, use qcow2 overlays and unique SSH ports:
 
 ```bash
-BASE=/home/varrahan/sim/ttsim-qemu/ubuntu.qcow2
-qemu-img create -f qcow2 -F qcow2 -b "$BASE" /home/varrahan/sim/ttsim-qemu/agent-1-overlay.qcow2
-qemu-img create -f qcow2 -F qcow2 -b "$BASE" /home/varrahan/sim/ttsim-qemu/agent-2-overlay.qcow2
+BASE="$HOME/sim/ttsim-qemu/ubuntu.qcow2"
+qemu-img create -f qcow2 -F qcow2 -b "$BASE" "$HOME/sim/ttsim-qemu/agent-1-overlay.qcow2"
+qemu-img create -f qcow2 -F qcow2 -b "$BASE" "$HOME/sim/ttsim-qemu/agent-2-overlay.qcow2"
 ```
 
 Then launch each VM with a different disk and host port:
 
 ```text
-agent 1: -drive file=/home/varrahan/sim/ttsim-qemu/agent-1-overlay.qcow2,... -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22
-agent 2: -drive file=/home/varrahan/sim/ttsim-qemu/agent-2-overlay.qcow2,... -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2223-:22
+agent 1: -drive file=$HOME/sim/ttsim-qemu/agent-1-overlay.qcow2,... -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22
+agent 2: -drive file=$HOME/sim/ttsim-qemu/agent-2-overlay.qcow2,... -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2223-:22
 ```
 
 For most workflows, it is simpler for several agents to share one running VM through separate SSH sessions.
@@ -674,8 +669,8 @@ requires TCG with `-cpu max`; `/dev/kvm` permissions are irrelevant.
 Check the library path and dependencies:
 
 ```bash
-ls -l /home/varrahan/sim/libttsim_wh.so
-ldd /home/varrahan/sim/libttsim_wh.so
+ls -l "$HOME/sim/libttsim_wh.so"
+ldd "$HOME/sim/libttsim_wh.so"
 ```
 
 Also confirm the custom QEMU binary was built with the `ttsim` device support expected by this command.
@@ -719,11 +714,11 @@ QEMU host:                  <hostname or ssh target for the physical host>
 VM SSH host from QEMU host:  127.0.0.1
 VM SSH port:                2222
 VM SSH user:                ubuntu
-VM auth method:             /home/varrahan/.ssh/ttsim_vm_ed25519
-QEMU PID file:               /home/varrahan/sim/ttsim-qemu/vm.pid
-Disk image:                  /home/varrahan/sim/ttsim-qemu/ubuntu.qcow2
-Cloud-init seed:             /home/varrahan/sim/ttsim-qemu/seed.iso
-ttsim library:               /home/varrahan/sim/libttsim_wh.so (v1.8.4)
+VM auth method:             $HOME/.ssh/ttsim_vm_ed25519
+QEMU PID file:               $HOME/sim/ttsim-qemu/vm.pid
+Disk image:                  $HOME/sim/ttsim-qemu/ubuntu.qcow2
+Cloud-init seed:             $HOME/sim/ttsim-qemu/seed.iso
+ttsim library:               $HOME/sim/libttsim_wh.so (v1.8.4)
 Expected bridge driver:      ttkmd-2.3.0
 Shutdown command:            ssh -p 2222 ubuntu@127.0.0.1 'sudo shutdown -h now'
 ```

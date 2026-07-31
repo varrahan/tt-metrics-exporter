@@ -8,7 +8,6 @@ live workload telemetry ingestion without physical cards.
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 import random
 import shutil
@@ -191,17 +190,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sysfs-root",
         type=Path,
-        default=Path(os.environ.get("TTSIM_FAKE_SYSFS_ROOT", str(DEFAULT_SYSFS_ROOT))),
+        default=DEFAULT_SYSFS_ROOT,
         help=f"Root where fake sysfs is rendered (default: {DEFAULT_SYSFS_ROOT})",
     )
     parser.add_argument(
         "--state-root",
         type=Path,
-        default=Path(os.environ.get("TTSIM_FAKE_STATE_ROOT", str(DEFAULT_STATE_ROOT))),
+        default=DEFAULT_STATE_ROOT,
         help=f"Root for fake profiler state writes (default: {DEFAULT_STATE_ROOT})",
     )
-    parser.add_argument("--device-count", type=int, default=int(os.environ.get("TTSIM_FAKE_DEVICE_COUNT", str(DEFAULT_DEVICES))))
-    parser.add_argument("--interval", type=float, default=float(os.environ.get("TTSIM_FAKE_INTERVAL", str(DEFAULT_INTERVAL))))
+    parser.add_argument("--device-count", type=int, default=DEFAULT_DEVICES)
+    parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL)
     parser.add_argument("--iterations", type=int, default=0, help="Number of update iterations; 0 means infinite.")
     parser.add_argument("--simulate-workloads", action="store_true", help="Write synthetic TT-Metalium v2 workload state.")
     return parser.parse_args()

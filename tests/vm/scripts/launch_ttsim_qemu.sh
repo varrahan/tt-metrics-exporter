@@ -2,13 +2,20 @@
 
 set -euo pipefail
 
-qemu_bin="${QEMU_BIN:-$HOME/.local/bin/qemu-system-x86_64}"
-vm_root="${TTSIM_VM_ROOT:-$HOME/sim/ttsim-qemu}"
-simulator="${TTSIM_LIBRARY:-$HOME/sim/libttsim_wh.so}"
-ssh_port="${TTSIM_SSH_PORT:-2222}"
+readonly QEMU_BIN="$HOME/.local/bin/qemu-system-x86_64"
+readonly TTSIM_VM_ROOT="$HOME/sim/ttsim-qemu"
+readonly TTSIM_LIBRARY="$HOME/sim/libttsim_wh.so"
+readonly TTSIM_SSH_PORT=2222
+readonly TTSIM_MONITOR_SOCKET="/tmp/ttsim-mon.sock"
+readonly TTSIM_SERIAL_LOG="/tmp/ttsim-qemu-serial.log"
+
+qemu_bin="$QEMU_BIN"
+vm_root="$TTSIM_VM_ROOT"
+simulator="$TTSIM_LIBRARY"
+ssh_port="$TTSIM_SSH_PORT"
 pidfile="$vm_root/vm.pid"
-monitor_socket="${TTSIM_MONITOR_SOCKET:-/tmp/ttsim-mon.sock}"
-serial_log="${TTSIM_SERIAL_LOG:-/tmp/ttsim-qemu-serial.log}"
+monitor_socket="$TTSIM_MONITOR_SOCKET"
+serial_log="$TTSIM_SERIAL_LOG"
 
 for required in "$qemu_bin" "$vm_root/ubuntu.qcow2" \
   "$vm_root/seed.iso" "$simulator"; do

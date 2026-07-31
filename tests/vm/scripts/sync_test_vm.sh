@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VM_HOST="${VM_HOST:-127.0.0.1}"
-VM_PORT="${TTSIM_SSH_PORT:-2222}"
-VM_USER="${VM_USER:-ubuntu}"
-VM_KEY="${VM_SSH_KEY:-$HOME/.ssh/ttsim_vm_ed25519}"
-VM_REPO="${VM_REPO_PATH:-/home/ubuntu/tt-telemetry}"
+readonly VM_HOST="127.0.0.1"
+readonly VM_PORT=2222
+readonly VM_USER="ubuntu"
+readonly VM_KEY="$HOME/.ssh/ttsim_vm_ed25519"
+readonly VM_REPO_PATH="/home/ubuntu/tt-telemetry"
+
+VM_REPO="$VM_REPO_PATH"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_TEST_VMS="${SCRIPT_DIR}/.."
 
