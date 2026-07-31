@@ -35,6 +35,7 @@ dev = [
 addopts = "--strict-config --strict-markers"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 10000

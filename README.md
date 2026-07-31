@@ -486,6 +486,12 @@ Run the full suite with:
 uv run scripts/ci/run_tests.py
 ```
 
+Or run the test suite directly via:
+
+```bash
+uv run pytest
+```
+
 For a faster loop:
 
 ```bash
