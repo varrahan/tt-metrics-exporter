@@ -5,9 +5,11 @@ source and state-file contracts are described in
 [`docs/guides.md`](docs/guides.md).
 
 The exporter is intended to run as a node-local DaemonSet in the QEMU `ttsim`
-VM or on physical Tenstorrent hosts. Runtime validation that depends on
-`tt-kmd`, `/sys/class/tenstorrent`, `/dev/tenstorrent`, Docker, `kind`, or DRA
-APIs must be performed from the VM.
+VM or on physical Tenstorrent hosts. It is Linux-kernel dependent only through
+`sysfs` and device/driver paths; it is distro-agnostic.
+Runtime validation that depends on `tt-kmd`, `/sys/class/tenstorrent`,
+`/dev/tenstorrent`, Docker, `kind`, and Kubernetes APIs should be performed
+from the VM. DRA state roots are optional for core telemetry collection.
 
 QEMU VM setup and launch guidance is in [`docs/VM.md`](docs/VM.md).
 Runtime environment variables used by this program are documented in
@@ -180,8 +182,20 @@ no Tenstorrent device is discovered. Enable `--collect-hwmon` or
 `--collect-pcie-counters` only after those interfaces have been qualified on
 that platform.
 
-When DRA, janitor, and workload-profiler agents publish their node-local state,
-start the exporter with those optional roots as well:
+To run in the default DRA-agnostic mode, do not pass any DRA state roots:
+
+```bash
+uv run tt-metrics-exporter \
+  --sysfs-root "${TT_SYSFS_ROOT}" \
+  --listen-address 127.0.0.1 \
+  --port 9400
+```
+
+There is no `--dra-agnostic` CLI flag. The exporter is DRA-agnostic when the
+optional DRA/cluster state arguments are omitted.
+
+When DRA, janitor, and workload-profiler agents publish optional node-local
+state, start the exporter with those roots as well:
 
 ```bash
 uv run tt-metrics-exporter \
@@ -444,8 +458,8 @@ in-process results while avoiding profiler CSV artifacts in the workload
 container.
 
 Production publication is best-effort and rate-bounded by default so telemetry
-failures do not terminate the workload. DRA must mount only the workload's v2
-subtree and delete it during Unprepare; see
+failures do not terminate the workload. The trusted workload-state owner must
+mount only the workload's v2 subtree and delete it during Unprepare; see
 [`docs/info.md`](docs/info.md).
 
 Then scrape:

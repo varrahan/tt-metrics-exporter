@@ -5,6 +5,8 @@
 This contract defines the stable runtime behavior of the Tenstorrent metrics
 exporter. The production manifest targets the Python node service. A separate
 Python TTNN workload adapter publishes process-local profiler snapshots.
+Supported runtime environments are Linux systems with Tenstorrent sysfs and
+trusted node-local state writers; distro packaging is intentionally not assumed.
 
 ## Endpoint semantics
 

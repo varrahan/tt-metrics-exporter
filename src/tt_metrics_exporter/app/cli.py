@@ -220,7 +220,16 @@ class ExporterService:
         poller.join(timeout=self.options.shutdown_grace_period)
         coordinator.join(timeout=self.options.shutdown_grace_period)
         if poller.is_alive() or coordinator.is_alive():
-            os._exit(1)
+            self.logger.log(
+                LogLevel.WARN,
+                "exporter.shutdown_timeout",
+                "shutdown did not complete within grace period",
+                {
+                    "poller_alive": poller.is_alive(),
+                    "coordinator_alive": coordinator.is_alive(),
+                },
+            )
+            return 1
         self.logger.log(LogLevel.INFO, "exporter.shutdown_completed", "exporter shutdown completed")
         return result
 

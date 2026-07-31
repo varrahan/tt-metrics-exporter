@@ -1,7 +1,7 @@
 # VM.md — QEMU `ttsim` VM access guide
 
 This document is for agents and developers that need to boot, access, and run
-work inside the QEMU `ttsim` Ubuntu VM. The authoritative setup is Tenstorrent's
+work inside the QEMU `ttsim` Ubuntu VM (guest image is Ubuntu). The authoritative setup is Tenstorrent's
 [ttsim QEMU Bridge lesson](https://docs.tenstorrent.com/tt-vscode-toolkit/lessons/ttsim-qemu-bridge/).
 The commands below follow that lesson; project-specific Kubernetes checks are
 clearly separated from the simulator baseline.
@@ -11,6 +11,8 @@ clearly separated from the simulator baseline.
 This VM area is reserved for host-independent `ttsim` launch/verification
 material used across DRA driver and telemetry workflows, while component source
 and packaging stay under their owning `src/` paths.
+Host-side scripts and checks are Linux-distribution-agnostic; Ubuntu-specific
+commands are called out explicitly where they are used.
 
 The authoritative `ttsim` baseline is:
 

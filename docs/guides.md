@@ -8,8 +8,9 @@ Prometheus scrape or JSON response.
 
 ## Purpose and design rules
 
-The telemetry system is a node-local observer for Tenstorrent devices. It has
-two outputs:
+The telemetry system is a node-local observer for Tenstorrent devices on Linux
+kernels using `sysfs`; it is distribution-agnostic beyond that.
+It has two outputs:
 
 - Prometheus exposition text for monitoring and alerting.
 - Structured JSON for inventory, debugging, and DRA-related consumers.
@@ -107,6 +108,8 @@ Important options include:
 - `--allocation-state-root`: optional DRA allocation state.
 - `--janitor-state-root`: optional hardware janitor state.
 - `--metalium-profiler-state-root`: optional workload profiler state.
+- There is no dedicated `--dra-agnostic` flag. The exporter runs without DRA
+  integration when these roots are omitted.
 - `--metalium-profiler-stale-after`: profiler freshness window; defaults to
   15 seconds.
 - `--collect-hwmon`: enables optional hardware-monitor sensor reads.

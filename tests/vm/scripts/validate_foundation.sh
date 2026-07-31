@@ -142,7 +142,17 @@ run_base_checks() {
   log "checking guest OS and services"
   cat /etc/os-release
   uname -a
-  systemctl is-active ssh >/dev/null || systemctl status ssh --no-pager
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl is-active ssh >/dev/null || systemctl is-active sshd >/dev/null || systemctl status ssh --no-pager
+  elif command -v service >/dev/null 2>&1; then
+    if ! service ssh status >/dev/null 2>&1; then
+      if ! service sshd status >/dev/null 2>&1; then
+        printf '[validate] warning: unable to confirm SSH service status on this host init system\n'
+      fi
+    fi
+  else
+    printf '[validate] warning: no recognized init-service command found; skipping SSH service status check\n'
+  fi
 
   log "checking Docker, kind, and kubectl"
   docker version >/dev/null || sudo docker version >/dev/null
