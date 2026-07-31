@@ -77,6 +77,73 @@ mkdir -p /tmp/tt-exporter-sysfs
 export TT_SYSFS_ROOT=/tmp/tt-exporter-sysfs
 ```
 
+### 4b. Prepare the TTSim VM for this repo
+
+Set up the QEMU VM and validate the Tenstorrent bridge path before running
+telemetry collection:
+
+```bash
+# on host
+./tests/vm/scripts/launch_ttsim_qemu.sh
+./tests/vm/scripts/verify_ttsim_qemu.sh
+```
+
+The launch script exposes SSH on host port `2222` by default, as user `ubuntu`.
+Connect and verify the root path:
+
+```bash
+ssh -p 2222 ubuntu@127.0.0.1
+test -d /sys/class/tenstorrent
+```
+
+Inside the repository on the host, copy the VM-only VM test helpers if the guest
+doesn’t already have them:
+
+```bash
+./tests/vm/scripts/sync_test_vm.sh
+```
+
+### 4c. Simulate 32 devices and inject workloads
+
+Run the local workload simulator in the guest to generate synthetic hardware and
+TT-Metalium workload state for validation:
+
+```bash
+cd /home/ubuntu/tt-telemetry
+python3 tests/vm/ttsim_fake_hardware.py \
+  --sysfs-root /tmp/tt-sim-sysfs \
+  --state-root /tmp/tt-sim-state \
+  --device-count 32 \
+  --interval 1 \
+  --iterations 0 \
+  --simulate-workloads
+```
+
+This starts an indefinite loop so leave it running in a terminal and open a second
+terminal for the exporter. Then start collection using the injected roots:
+
+```bash
+cd /home/ubuntu/tt-telemetry
+uv run tt-metrics-exporter \
+  --sysfs-root /tmp/tt-sim-sysfs/class/tenstorrent \
+  --metalium-profiler-state-root /tmp/tt-sim-state \
+  --collect-hwmon \
+  --listen-address 127.0.0.1 \
+  --port 9400 \
+  --poll-interval 1 \
+  --max-snapshot-age 10 \
+  --log-level info
+```
+
+Validate the injected paths are being rendered:
+
+```bash
+curl --fail --silent --show-error http://127.0.0.1:9400/healthz
+curl --fail --silent --show-error http://127.0.0.1:9400/readyz
+curl --fail --silent --show-error 'http://127.0.0.1:9400/metrics' | grep '^tt_devices_discovered'
+curl --fail --silent --show-error http://127.0.0.1:9400/v1/devices | uv run python -m json.tool
+```
+
 ### 5. Inspect one snapshot
 
 Print one Prometheus snapshot:
