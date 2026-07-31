@@ -10,6 +10,8 @@ VM or on physical Tenstorrent hosts. Runtime validation that depends on
 APIs must be performed from the VM.
 
 QEMU VM setup and launch guidance is in [`docs/VM.md`](docs/VM.md).
+Runtime environment variables used by this program are documented in
+[`docs/ENV.md`](docs/ENV.md).
 
 ## Setup And Run
 
@@ -333,6 +335,31 @@ remain empty.
 because the current `ttsim` bridge has unsafe or incomplete implementations of
 both interfaces. The production physical-hardware manifest enables `hwmon`;
 enable either source elsewhere only after validating that environment.
+
+## Environment variables
+
+The exporter has no required environment variables for normal daemon operation when
+using CLI flags.
+
+Use these variables when running and validating this program:
+
+- Required for TT-Metalium profiling workloads:
+  - `TT_METAL_DEVICE_PROFILER=1`
+  - `TT_METAL_PROFILER_MID_RUN_DUMP=1`
+  - `TT_METAL_PROFILER_CPP_POST_PROCESS=1`
+- Optional TT-Metalium controls:
+  - `TT_METAL_PROFILER_DISABLE_DUMP_TO_FILES=1`
+  - `TT_METALIUM_PROFILER_STATE_ROOT` (defaults to
+    `/var/lib/tt-device-plugin/metalium-profiler` unless overridden by script arg)
+- Optional workload identity metadata:
+  - `TT_WORKLOAD_ID`
+  - `POD_UID`
+  - `POD_NAME`
+  - `POD_NAMESPACE`
+  - `CONTAINER_NAME`
+- Build metadata (read by `--version` output):
+  - `TT_EXPORTER_REVISION`
+  - `TT_EXPORTER_BUILD_TIME`
 
 ## Build And Test
 

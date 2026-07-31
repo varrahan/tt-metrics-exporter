@@ -5,6 +5,7 @@ This documentation is organized to reduce duplication:
 - [VM setup and validation](VM.md)
 - [System guides](guides.md)
 - [Operational contracts and policy](info.md)
+- [Environment variables](ENV.md)
 - [JSON schema](schema/telemetry.tenstorrent.com-v1.schema.json)
 
 Core concepts:
